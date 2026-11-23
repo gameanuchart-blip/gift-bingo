@@ -343,6 +343,122 @@
       border-color: #fef08a;
     }
 
+    /* Admin players live mini-board grid (dots only, no numbers) */
+    .players-header-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .players-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .legend-swatch {
+      width: 11px;
+      height: 11px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .swatch-empty {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+    }
+
+    .swatch-free {
+      background: rgba(245, 158, 11, 0.45);
+      border: 1px solid rgba(251, 191, 36, 0.8);
+    }
+
+    .swatch-marked {
+      background: #10b981;
+      border: 1px solid #6ee7b7;
+    }
+
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+      gap: 10px;
+    }
+
+    .player-mini-card {
+      background: rgba(15, 23, 42, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 14px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .player-mini-card.has-bingo {
+      border-color: rgba(52, 211, 153, 0.85);
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    .player-mini-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .player-mini-name {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-mini-count {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #6ee7b7;
+      flex-shrink: 0;
+    }
+
+    .mini-board-5x5 {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      max-width: 120px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .mini-dot {
+      aspect-ratio: 1 / 1;
+      border-radius: 5px;
+      background: rgba(30, 41, 59, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .mini-dot.free {
+      background: rgba(245, 158, 11, 0.35);
+      border-color: rgba(251, 191, 36, 0.75);
+    }
+
+    .mini-dot.marked {
+      background: #10b981;
+      border-color: #6ee7b7;
+    }
+
     .player-screen {
       display: flex;
       flex-direction: column;
@@ -678,6 +794,22 @@
           </div>
           <div class="board-75" id="adminBoard75"></div>
         </div>
+
+        <div>
+          <div class="players-header-row">
+            <div style="font-size: 0.9rem; font-weight: 700;" id="adminPlayersCountLabel">
+              ผู้เล่นในห้อง (0 คน)
+            </div>
+            <div class="players-legend">
+              <span class="legend-item"><span class="legend-swatch swatch-empty"></span>ยังไม่ติ๊ก</span>
+              <span class="legend-item"><span class="legend-swatch swatch-free"></span>FREE</span>
+              <span class="legend-item"><span class="legend-swatch swatch-marked"></span>ติ๊กแล้ว</span>
+            </div>
+          </div>
+          <div class="players-grid" id="adminPlayersGrid">
+            <span class="muted">ยังไม่มีผู้เล่นเข้าห้อง</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -751,7 +883,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, off } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+    import { getDatabase, ref, set, remove, onValue, off } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
     const firebaseConfig = {
       databaseURL: "https://gift-bingo-65cb9-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -761,8 +893,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const STORAGE_PREFIX = "gift_bingo_room_v4_";
-    const CHANNEL_NAME = "gift_bingo_channel_v4";
+    const STORAGE_PREFIX = "gift_bingo_room_v5_";
+    const CHANNEL_NAME = "gift_bingo_channel_v5";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
     const LINE_PATTERNS = [
@@ -780,10 +912,7 @@
       [4, 8, 12, 16, 20]
     ];
 
-    // Pattern 5: 4 corners (top-left, top-right, bottom-left, bottom-right)
     const FOUR_CORNERS_PATTERN = [0, 4, 20, 24];
-
-    // Pattern 6: Inner ring around center FREE cell (index 12)
     const INNER_RING_PATTERN = [6, 8, 16, 18];
 
     const RULE_LABELS = {
@@ -796,8 +925,10 @@
 
     let currentRole = null;
     let currentRoom = "";
+    let playerId = "";
     let playerName = "";
     let playerBoard = [];
+    let playersMap = {};
     let lastAppliedSyncSignature = "";
     let activeDbRef = null;
 
@@ -838,8 +969,33 @@
       return cells;
     }
 
+    function generatePlayerId() {
+      return "p_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+    }
+
+    function buildDotSnapshot(board, matchedRuleLabel) {
+      const dots = Array.from({ length: 25 }, (_, idx) => {
+        if (idx === 12) return "F";
+        const cell = board[idx];
+        return cell && cell.marked ? "M" : "0";
+      });
+      const markedCount = board.filter((c, idx) => idx !== 12 && c && c.marked).length;
+      return {
+        id: playerId,
+        name: playerName || "ผู้เล่น",
+        dots: dots,
+        markedCount: markedCount,
+        bingoRule: matchedRuleLabel || null,
+        updatedAt: Date.now()
+      };
+    }
+
     function roomStorageKey(code) {
       return STORAGE_PREFIX + String(code || "").trim().toUpperCase();
+    }
+
+    function playersStorageKey(code) {
+      return STORAGE_PREFIX + String(code || "").trim().toUpperCase() + "_players";
     }
 
     function encodeSyncCode(state) {
@@ -890,6 +1046,59 @@
       };
     }
 
+    function syncPlayerPresenceToRoom() {
+      if (currentRole !== "player" || !currentRoom || !playerId) return;
+      const cleanCode = String(currentRoom).trim().toUpperCase();
+      const snap = buildDotSnapshot(playerBoard, getMatchedBingoRuleLabel());
+
+      playersMap = {
+        ...playersMap,
+        [playerId]: snap
+      };
+
+      try {
+        localStorage.setItem(playersStorageKey(cleanCode), JSON.stringify(playersMap));
+      } catch (err) {}
+
+      set(ref(db, "rooms/" + cleanCode + "/players/" + playerId), snap).catch((err) => {
+        console.error("Player presence write error:", err);
+      });
+
+      if (channel) {
+        try {
+          channel.postMessage({
+            type: "PLAYER_PRESENCE_UPDATE",
+            room: cleanCode,
+            player: snap
+          });
+        } catch (err) {}
+      }
+    }
+
+    function removePlayerPresenceFromRoom() {
+      if (currentRole !== "player" || !currentRoom || !playerId) return;
+      const cleanCode = String(currentRoom).trim().toUpperCase();
+      const nextPlayers = { ...playersMap };
+      delete nextPlayers[playerId];
+      playersMap = nextPlayers;
+
+      try {
+        localStorage.setItem(playersStorageKey(cleanCode), JSON.stringify(playersMap));
+      } catch (err) {}
+
+      remove(ref(db, "rooms/" + cleanCode + "/players/" + playerId)).catch(() => {});
+
+      if (channel) {
+        try {
+          channel.postMessage({
+            type: "PLAYER_PRESENCE_REMOVE",
+            room: cleanCode,
+            playerId: playerId
+          });
+        } catch (err) {}
+      }
+    }
+
     function attachRoomRealtimeListener(code) {
       detachRoomRealtimeListener();
       if (!code) return;
@@ -899,13 +1108,19 @@
       onValue(
         activeDbRef,
         (snapshot) => {
-          if (!snapshot.exists()) return;
+          if (!snapshot.exists()) {
+            playersMap = {};
+            renderAll();
+            return;
+          }
           const val = snapshot.val();
           const drawnList = Array.isArray(val.drawn) ? val.drawn : [];
           const drawnSet = new Set(drawnList);
           const poolList = Array.isArray(val.pool)
             ? val.pool
             : shuffleArray(Array.from({ length: 75 }, (_, i) => i + 1).filter((n) => !drawnSet.has(n)));
+
+          playersMap = val.players && typeof val.players === "object" ? val.players : {};
 
           applyIncomingRoomState({
             room: cleanCode,
@@ -947,17 +1162,13 @@
 
       const cleanCode = String(nextState.room || "").trim().toUpperCase();
       if (cleanCode) {
-        set(ref(db, "rooms/" + cleanCode), {
-          room: cleanCode,
-          locked: Boolean(nextState.locked),
-          ruleMode: nextState.ruleMode,
-          drawn: Array.isArray(nextState.drawn) ? nextState.drawn : [],
-          pool: Array.isArray(nextState.pool) ? nextState.pool : [],
-          winner: nextState.winner || null,
-          updatedAt: nextState.updatedAt
-        }).catch((err) => {
-          console.error("Firebase write error:", err);
-        });
+        set(ref(db, "rooms/" + cleanCode + "/room"), cleanCode).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/locked"), Boolean(nextState.locked)).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/ruleMode"), nextState.ruleMode).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/drawn"), Array.isArray(nextState.drawn) ? nextState.drawn : []).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/pool"), Array.isArray(nextState.pool) ? nextState.pool : []).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/winner"), nextState.winner || null).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/updatedAt"), nextState.updatedAt).catch(() => {});
       }
 
       try {
@@ -1007,6 +1218,17 @@
       return null;
     }
 
+    function loadPlayersFromStorage(code) {
+      if (!code) return {};
+      try {
+        const raw = localStorage.getItem(playersStorageKey(code));
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (err) {}
+      return {};
+    }
+
     function applyIncomingRoomState(incoming) {
       if (!incoming || !incoming.room) return;
       if (currentRoom && String(incoming.room).toUpperCase() !== String(currentRoom).toUpperCase()) {
@@ -1018,7 +1240,7 @@
         d: incoming.drawn || [],
         w: incoming.winner || null
       });
-      if (sig === lastAppliedSyncSignature) return;
+      const stateChanged = sig !== lastAppliedSyncSignature;
       lastAppliedSyncSignature = sig;
 
       roomState = {
@@ -1037,13 +1259,18 @@
 
       if (currentRole === "player") {
         const drawnSet = new Set(roomState.drawn);
+        let boardChanged = false;
         playerBoard = playerBoard.map((cell) => {
           if (cell.isFree) return cell;
           if (cell.marked && !drawnSet.has(cell.num)) {
+            boardChanged = true;
             return { ...cell, marked: false };
           }
           return cell;
         });
+        if (stateChanged || boardChanged) {
+          syncPlayerPresenceToRoom();
+        }
       }
 
       renderAll();
@@ -1052,18 +1279,42 @@
     if (channel) {
       channel.onmessage = (event) => {
         const data = event.data;
-        if (data && data.type === "ROOM_STATE_UPDATE" && data.state) {
+        if (!data || !data.room) return;
+        if (currentRoom && String(data.room).toUpperCase() !== String(currentRoom).toUpperCase()) {
+          return;
+        }
+        if (data.type === "ROOM_STATE_UPDATE" && data.state) {
           applyIncomingRoomState(data.state);
+        } else if (data.type === "PLAYER_PRESENCE_UPDATE" && data.player && data.player.id) {
+          playersMap = {
+            ...playersMap,
+            [data.player.id]: data.player
+          };
+          renderAll();
+        } else if (data.type === "PLAYER_PRESENCE_REMOVE" && data.playerId) {
+          const next = { ...playersMap };
+          delete next[data.playerId];
+          playersMap = next;
+          renderAll();
         }
       };
     }
 
     window.addEventListener("storage", (event) => {
       if (!currentRoom || !event.key) return;
-      if (event.key === roomStorageKey(currentRoom) && event.newValue) {
+      const cleanCode = String(currentRoom).trim().toUpperCase();
+      if (event.key === roomStorageKey(cleanCode) && event.newValue) {
         try {
           const parsed = JSON.parse(event.newValue);
           applyIncomingRoomState(parsed);
+        } catch (err) {}
+      } else if (event.key === playersStorageKey(cleanCode) && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (parsed && typeof parsed === "object") {
+            playersMap = parsed;
+            renderAll();
+          }
         } catch (err) {}
       }
     });
@@ -1073,6 +1324,10 @@
       if (data && data.type === "ROOM_STATE_UPDATE" && data.state) {
         applyIncomingRoomState(data.state);
       }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      removePlayerPresenceFromRoom();
     });
 
     const lobbyView = document.getElementById("lobbyView");
@@ -1103,6 +1358,8 @@
     const copySyncCodeBtn = document.getElementById("copySyncCodeBtn");
     const adminHistoryChips = document.getElementById("adminHistoryChips");
     const adminBoard75 = document.getElementById("adminBoard75");
+    const adminPlayersCountLabel = document.getElementById("adminPlayersCountLabel");
+    const adminPlayersGrid = document.getElementById("adminPlayersGrid");
     const adminWinnerBanner = document.getElementById("adminWinnerBanner");
     const adminWinnerText = document.getElementById("adminWinnerText");
     const clearWinnerBtn = document.getElementById("clearWinnerBtn");
@@ -1138,6 +1395,7 @@
       currentRole = "admin";
       currentRoom = code;
       lastAppliedSyncSignature = "";
+      playersMap = loadPlayersFromStorage(code);
       const existing = loadRoomStateFromStorage(code);
       const initial = existing || createDefaultRoomState(code);
       initial.room = code;
@@ -1155,20 +1413,25 @@
       const name = (playerNameInput.value || "ผู้เล่น").trim();
       currentRole = "player";
       currentRoom = code;
+      playerId = generatePlayerId();
       playerName = name;
       lastAppliedSyncSignature = "";
       playerBoard = generateScatteredBoard();
 
       const existing = loadRoomStateFromStorage(code);
       roomState = existing || createDefaultRoomState(code);
+      playersMap = loadPlayersFromStorage(code);
       attachRoomRealtimeListener(code);
+      syncPlayerPresenceToRoom();
       renderAll();
     });
 
     leaveBtn.addEventListener("click", () => {
+      removePlayerPresenceFromRoom();
       detachRoomRealtimeListener();
       currentRole = null;
       currentRoom = "";
+      playerId = "";
       lastAppliedSyncSignature = "";
       renderAll();
     });
@@ -1313,12 +1576,14 @@
       }
       playerBoard = generateScatteredBoard();
       setToast("สุ่มตัวเลขบนกระดาน 5×5 ใหม่เรียบร้อยแล้ว");
+      syncPlayerPresenceToRoom();
       renderPlayer();
     });
 
     playerClearMarksBtn.addEventListener("click", () => {
       playerBoard = playerBoard.map((cell) => (cell.isFree ? cell : { ...cell, marked: false }));
       setToast("ล้างจุดที่ติ๊กออกแล้ว (ช่อง FREE ยังคงอยู่)");
+      syncPlayerPresenceToRoom();
       renderPlayer();
     });
 
@@ -1337,6 +1602,7 @@
         }
       };
       saveAndBroadcastRoomState(next);
+      syncPlayerPresenceToRoom();
       setToast("ส่งสัญญาณ BINGO (" + matchedLabel + ") ไปที่หน้าจอแอดมินแล้ว!");
     });
 
@@ -1367,6 +1633,58 @@
         playerView.classList.remove("hidden");
         renderPlayer();
       }
+    }
+
+    function renderAdminPlayersGrid() {
+      const list = Object.values(playersMap || {}).filter((p) => p && p.name);
+      list.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+
+      adminPlayersCountLabel.textContent = "ผู้เล่นในห้อง (" + list.length + " คน)";
+      adminPlayersGrid.innerHTML = "";
+
+      if (list.length === 0) {
+        const empty = document.createElement("span");
+        empty.className = "muted";
+        empty.textContent = "ยังไม่มีผู้เล่นเข้าห้อง";
+        adminPlayersGrid.appendChild(empty);
+        return;
+      }
+
+      list.forEach((p) => {
+        const card = document.createElement("div");
+        card.className = "player-mini-card" + (p.bingoRule ? " has-bingo" : "");
+
+        const top = document.createElement("div");
+        top.className = "player-mini-top";
+
+        const nameEl = document.createElement("span");
+        nameEl.className = "player-mini-name";
+        nameEl.title = p.name;
+        nameEl.textContent = p.name;
+
+        const countEl = document.createElement("span");
+        countEl.className = "player-mini-count";
+        countEl.textContent = p.bingoRule ? "BINGO!" : "ติ๊ก " + (Number(p.markedCount) || 0);
+
+        top.appendChild(nameEl);
+        top.appendChild(countEl);
+        card.appendChild(top);
+
+        const miniGrid = document.createElement("div");
+        miniGrid.className = "mini-board-5x5";
+        const dots = Array.isArray(p.dots) && p.dots.length === 25 ? p.dots : Array(25).fill("0");
+
+        for (let i = 0; i < 25; i++) {
+          const dot = document.createElement("div");
+          const code = i === 12 ? "F" : dots[i];
+          dot.className =
+            "mini-dot" + (code === "F" ? " free" : code === "M" ? " marked" : "");
+          miniGrid.appendChild(dot);
+        }
+
+        card.appendChild(miniGrid);
+        adminPlayersGrid.appendChild(card);
+      });
     }
 
     function renderAdmin() {
@@ -1419,6 +1737,8 @@
         cell.textContent = String(n);
         adminBoard75.appendChild(cell);
       }
+
+      renderAdminPlayersGrid();
     }
 
     function renderPlayer() {
@@ -1490,6 +1810,7 @@
               ? "ติ๊กเลข " + cell.num + " เรียบร้อยแล้ว"
               : "ยกเลิกติ๊กเลข " + cell.num + " แล้ว"
           );
+          syncPlayerPresenceToRoom();
           renderPlayer();
         });
 
