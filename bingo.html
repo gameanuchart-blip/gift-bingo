@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gift Bingo Party — เกมบิงโกของขวัญปีใหม่</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-0: #090d16;
+      --bg-1: #101726;
+      --bg-2: #162033;
+      --card: rgba(18, 27, 43, 0.92);
+      --card-border: rgba(148, 163, 184, 0.18);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #f59e0b;
+      --accent-2: #fbbf24;
+      --emerald: #10b981;
+      --indigo: #6366f1;
+      --rose: #f43f5e;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100dvh;
+      font-family: 'Noto Sans Thai', 'Sarabun', sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(245, 158, 11, 0.14), transparent 36%),
+        radial-gradient(circle at 85% 15%, rgba(99, 102, 241, 0.16), transparent 40%),
+        linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+      color: var(--text);
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 14px;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 12px 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--accent), var(--rose));
+      color: #090d16;
+      font-weight: 800;
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      color: var(--text);
+    }
+
+    .pill.live {
+      background: rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+
+    .pill.locked {
+      background: rgba(245, 158, 11, 0.16);
+      border-color: rgba(245, 158, 11, 0.45);
+      color: #fcd34d;
+    }
+
+    button, input {
+      font-family: 'Noto Sans Thai', 'Sarabun', sans-serif;
+    }
+
+    button {
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 9px 14px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      background: var(--bg-2);
+      transition: transform 0.1s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--rose));
+      color: #090d16;
+    }
+
+    .btn-emerald {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #04130d;
+    }
+
+    .btn-indigo {
+      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      color: #ffffff;
+    }
+
+    .btn-ghost {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    input[type="text"] {
+      background: rgba(9, 13, 22, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 0.92rem;
+      color: var(--text);
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .lobby-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+      margin-top: 6px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.86rem;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    .sync-box {
+      background: rgba(9, 13, 22, 0.9);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sync-code-text {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+      color: #fde68a;
+      word-break: break-all;
+      background: rgba(30, 41, 59, 0.65);
+      padding: 8px 10px;
+      border-radius: 10px;
+      max-height: 76px;
+      overflow-y: auto;
+    }
+
+    .sync-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* Admin layout */
+    .admin-layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    @media (max-width: 880px) {
+      .admin-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .latest-ball {
+      width: 112px;
+      height: 112px;
+      margin: 4px auto;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 30% 25%, #fde047, #f59e0b 65%, #b45309 100%);
+      color: #090d16;
+      box-shadow: 0 10px 28px rgba(245, 158, 11, 0.28);
+    }
+
+    .latest-ball small {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .latest-ball span {
+      font-size: 2.35rem;
+      font-weight: 800;
+      line-height: 1.05;
+    }
+
+    .history-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 132px;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+
+    .chip {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      color: #e2e8f0;
+    }
+
+    .chip.latest {
+      background: var(--accent);
+      color: #090d16;
+      border-color: var(--accent-2);
+    }
+
+    .board-75 {
+      display: grid;
+      grid-template-columns: repeat(15, 1fr);
+      gap: 5px;
+    }
+
+    @media (max-width: 640px) {
+      .board-75 {
+        grid-template-columns: repeat(10, 1fr);
+      }
+    }
+
+    .cell-75 {
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      color: #64748b;
+    }
+
+    .cell-75.drawn {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: rgba(251, 191, 36, 0.65);
+      color: #fde68a;
+    }
+
+    .cell-75.latest {
+      background: var(--accent);
+      color: #090d16;
+      border-color: #fef08a;
+    }
+
+    /* Player single-screen layout without overlap */
+    .player-screen {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: calc(100dvh - 88px);
+    }
+
+    .drawn-banner {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 10px 14px;
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .now-box {
+      height: 72px;
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(245, 158, 11, 0.24), rgba(244, 63, 94, 0.18));
+      border: 1px solid rgba(251, 191, 36, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .now-box small {
+      font-size: 0.68rem;
+      color: #fcd34d;
+      font-weight: 700;
+    }
+
+    .now-box strong {
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: #fef08a;
+      line-height: 1.1;
+    }
+
+    .drawn-list-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .drawn-list-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .drawn-scroll {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .mini-chip {
+      flex: 0 0 auto;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      background: rgba(30, 41, 59, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: #f1f5f9;
+    }
+
+    .mini-chip.latest {
+      background: var(--accent);
+      color: #090d16;
+      border-color: #fde047;
+    }
+
+    .player-board-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 460px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .bingo-headers {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+
+    .bingo-head {
+      text-align: center;
+      padding: 6px 0;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 0.92rem;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(129, 140, 248, 0.35);
+      color: #c7d2fe;
+    }
+
+    .bingo-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+
+    .b-cell {
+      aspect-ratio: 1.15 / 1;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      font-size: 1.02rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .b-cell.free {
+      background: rgba(245, 158, 11, 0.22);
+      border-color: rgba(251, 191, 36, 0.65);
+      color: #fde68a;
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .b-cell.marked {
+      background: linear-gradient(135deg, #059669, #10b981);
+      border-color: #6ee7b7;
+      color: #04130d;
+      font-weight: 800;
+    }
+
+    .b-cell.undrawn-hint {
+      opacity: 0.65;
+    }
+
+    .player-footer {
+      max-width: 460px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .player-btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .bingo-call-btn {
+      width: 100%;
+      padding: 13px 16px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fbbf24, #f43f5e);
+      color: #090d16;
+      box-shadow: 0 8px 24px rgba(244, 63, 94, 0.35);
+    }
+
+    .status-toast {
+      font-size: 0.84rem;
+      color: #fde68a;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 8px 12px;
+      text-align: center;
+    }
+
+    .winner-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(245, 158, 11, 0.22));
+      border: 1px solid rgba(52, 211, 153, 0.6);
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-weight: 700;
+      color: #a7f3d0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge">GIFT BINGO</span>
+        <span>เกมบิงโกของขวัญปีใหม่</span>
+      </div>
+      <div class="topbar-actions" id="topActions">
+        <span class="pill" id="roomPill">ยังไม่ได้เข้าห้อง</span>
+        <span class="pill live" id="syncPill">พร้อมใช้งาน</span>
+        <button class="btn-ghost hidden" id="leaveBtn" type="button">ออกจากห้อง</button>
+      </div>
+    </header>
+
+    <!-- Lobby View -->
+    <section id="lobbyView" class="lobby-grid">
+      <div class="card">
+        <h2>สร้างห้องสำหรับแอดมิน / พิธีกร</h2>
+        <p class="muted">
+          สร้างรหัสห้อง 4 หลัก กดสุ่มตัวเลข 1–75 ได้เรื่อยๆ และส่งรหัสซิงก์ให้ผู้เล่นเพื่อล็อกกระดานและอัปเดตเลขที่ออกทันที
+        </p>
+        <div class="field">
+          <label for="adminRoomInput">รหัสห้อง (4 หลัก)</label>
+          <input id="adminRoomInput" type="text" maxlength="8" placeholder="เช่น 2026" />
+        </div>
+        <div class="sync-row">
+          <button class="btn-primary" id="createRoomBtn" type="button">สร้างห้องใหม่</button>
+          <button class="btn-ghost" id="randomRoomCodeBtn" type="button">สุ่มรหัสห้อง</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>เข้าเล่นสำหรับพนักงาน / ผู้เล่น</h2>
+        <p class="muted">
+          กรอกชื่อเล่นและรหัสห้อง กระดาน 5×5 จะสุ่มเลข 1–75 แบบกระจายทั่วแผ่นพร้อมช่อง FREE ตรงกลาง กดสุ่มกระดานใหม่ได้จนกว่าแอดมินจะเริ่มเกม
+        </p>
+        <div class="field">
+          <label for="playerNameInput">ชื่อเล่น / แผนก</label>
+          <input id="playerNameInput" type="text" maxlength="30" placeholder="เช่น พลอย - HR" />
+        </div>
+        <div class="field">
+          <label for="joinRoomInput">รหัสห้อง</label>
+          <input id="joinRoomInput" type="text" maxlength="8" placeholder="กรอกรหัสห้อง 4 หลัก" />
+        </div>
+        <button class="btn-indigo" id="joinRoomBtn" type="button">เข้าสู่กระดานบิงโก</button>
+      </div>
+    </section>
+
+    <!-- Admin View -->
+    <section id="adminView" class="admin-layout hidden">
+      <div class="card">
+        <div class="sync-row" style="justify-content: space-between;">
+          <span class="pill" id="adminRoomLabel">ห้อง: -</span>
+          <span class="pill" id="adminLockStatus">สถานะ: ยังไม่ล็อกกระดาน</span>
+        </div>
+
+        <div class="latest-ball">
+          <small>เลขล่าสุด</small>
+          <span id="adminLatestNum">-</span>
+        </div>
+
+        <p class="muted" style="text-align: center;" id="adminCountText">
+          ออกไปแล้ว 0 / 75 หมายเลข
+        </p>
+
+        <div class="sync-row">
+          <button class="btn-emerald" id="adminLockStartBtn" type="button" style="flex: 1;">
+            ล็อกกระดาน &amp; เริ่มเกม
+          </button>
+          <button class="btn-ghost" id="adminUnlockBtn" type="button">
+            ปลดล็อก
+          </button>
+        </div>
+
+        <button class="btn-primary" id="adminDrawBtn" type="button" style="width: 100%; padding: 12px 16px; font-size: 1rem;">
+          สุ่มตัวเลขใหม่ (กดได้เรื่อยๆ)
+        </button>
+
+        <div class="sync-row">
+          <button class="btn-ghost" id="adminResetRoundBtn" type="button" style="flex: 1;">
+            ล้างเลขที่ออก / เริ่มรอบใหม่
+          </button>
+        </div>
+
+        <div class="sync-box">
+          <div style="font-size: 0.84rem; font-weight: 700; color: #fcd34d;">
+            รหัสซิงก์สำหรับส่งให้ผู้เล่น (อัปเดตอัตโนมัติ)
+          </div>
+          <div class="sync-code-text" id="adminSyncCodeBox">GB1|...</div>
+          <div class="sync-row">
+            <button class="btn-indigo" id="copySyncCodeBtn" type="button" style="flex: 1;">
+              คัดลอกรหัสซิงก์
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div id="adminWinnerBanner" class="winner-banner hidden">
+          <span id="adminWinnerText">มีผู้บิงโก!</span>
+          <button class="btn-emerald" id="clearWinnerBtn" type="button">รับทราบ / เล่นต่อ</button>
+        </div>
+
+        <div>
+          <div style="font-size: 0.9rem; font-weight: 700; margin-bottom: 6px;">
+            ลำดับเลขที่ออกไปแล้วทั้งหมด
+          </div>
+          <div class="history-chips" id="adminHistoryChips">
+            <span class="muted">ยังไม่มีเลขที่ออก กด "สุ่มตัวเลขใหม่" ได้เลย</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 0.9rem; font-weight: 700; margin-bottom: 8px;">
+            ตารางตัวเลข 1–75
+          </div>
+          <div class="board-75" id="adminBoard75"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Player View -->
+    <section id="playerView" class="player-screen hidden">
+      <div id="playerWinnerBanner" class="winner-banner hidden">
+        <span id="playerWinnerText">ประกาศผู้บิงโก!</span>
+      </div>
+
+      <!-- Sync code bar for cross-tab/cross-device/iframe sync -->
+      <div class="card" style="padding: 10px 12px; gap: 8px;">
+        <div class="sync-row">
+          <input
+            id="playerSyncInput"
+            type="text"
+            placeholder="วางรหัสซิงก์จากแอดมิน (GB1|...) เพื่อรับเลขทันที"
+            style="flex: 1; min-width: 180px; padding: 8px 10px; font-size: 0.84rem;"
+          />
+          <button class="btn-indigo" id="playerApplySyncBtn" type="button" style="padding: 8px 12px; font-size: 0.84rem;">
+            เชื่อมเลขทันที
+          </button>
+        </div>
+      </div>
+
+      <!-- Drawn numbers bar -->
+      <div class="drawn-banner">
+        <div class="now-box">
+          <small>เลขล่าสุด</small>
+          <strong id="playerLatestNum">-</strong>
+        </div>
+        <div class="drawn-list-wrap">
+          <div class="drawn-list-title">
+            <span id="playerDrawnCount">เลขที่ออกไปแล้ว (0/75)</span>
+            <span style="font-size: 0.76rem; color: #94a3b8;" id="playerBoardLockLabel">สถานะ: สุ่มตารางได้</span>
+          </div>
+          <div class="drawn-scroll" id="playerDrawnScroll">
+            <span class="muted" style="font-size: 0.8rem;">รอแอดมินสุ่มตัวเลข...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5x5 Player Board -->
+      <div class="player-board-card">
+        <div class="bingo-headers">
+          <div class="bingo-head">B</div>
+          <div class="bingo-head">I</div>
+          <div class="bingo-head">N</div>
+          <div class="bingo-head">G</div>
+          <div class="bingo-head">O</div>
+        </div>
+        <div class="bingo-grid" id="playerGrid"></div>
+      </div>
+
+      <!-- Bottom controls -->
+      <div class="player-footer">
+        <button class="bingo-call-btn hidden" id="callBingoBtn" type="button">
+          ตะโกน BINGO!
+        </button>
+
+        <div class="player-btn-row">
+          <button class="btn-indigo" id="playerShuffleBtn" type="button">
+            สุ่มตารางใหม่
+          </button>
+          <button class="btn-ghost" id="playerClearMarksBtn" type="button">
+            ล้างจุดที่ติ๊ก
+          </button>
+        </div>
+
+        <div class="status-toast" id="playerStatusToast">
+          กดปุ่ม "สุ่มตารางใหม่" ได้จนกว่าแอดมินจะเริ่มเกม • เลขที่ยังไม่ออกกดติ๊กไม่ได้
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_PREFIX = "gift_bingo_room_v3_";
+      const CHANNEL_NAME = "gift_bingo_channel_v3";
+      const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
+
+      let currentRole = null; // 'admin' | 'player'
+      let currentRoom = "";
+      let playerName = "";
+      let playerBoard = []; // 25 items: { num: number | 'FREE', isFree: boolean, marked: boolean }
+      let lastAppliedSyncSignature = "";
+
+      let roomState = createDefaultRoomState("");
+
+      function createDefaultRoomState(roomCode) {
+        return {
+          room: roomCode,
+          locked: false,
+          drawn: [],
+          pool: shuffleArray(Array.from({ length: 75 }, (_, i) => i + 1)),
+          winner: null,
+          updatedAt: Date.now()
+        };
+      }
+
+      function shuffleArray(arr) {
+        const copy = arr.slice();
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      }
+
+      function generateScatteredBoard() {
+        const picked = shuffleArray(Array.from({ length: 75 }, (_, i) => i + 1)).slice(0, 24);
+        const cells = [];
+        let pIdx = 0;
+        for (let i = 0; i < 25; i++) {
+          if (i === 12) {
+            cells.push({ num: "FREE", isFree: true, marked: true });
+          } else {
+            cells.push({ num: picked[pIdx++], isFree: false, marked: false });
+          }
+        }
+        return cells;
+      }
+
+      function roomStorageKey(code) {
+        return STORAGE_PREFIX + String(code || "").trim().toUpperCase();
+      }
+
+      function encodeSyncCode(state) {
+        const payload = {
+          r: state.room,
+          l: state.locked ? 1 : 0,
+          d: state.drawn,
+          w: state.winner,
+          t: state.updatedAt || Date.now()
+        };
+        const json = JSON.stringify(payload);
+        const bytes = new TextEncoder().encode(json);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) {
+          bin += String.fromCharCode(bytes[i]);
+        }
+        return "GB1|" + btoa(bin);
+      }
+
+      function decodeSyncCode(codeStr) {
+        if (!codeStr || typeof codeStr !== "string") return null;
+        const trimmed = codeStr.trim();
+        const rawB64 = trimmed.startsWith("GB1|") ? trimmed.slice(4) : trimmed;
+        const bin = atob(rawB64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          bytes[i] = bin.charCodeAt(i);
+        }
+        const json = new TextDecoder().decode(bytes);
+        const parsed = JSON.parse(json);
+        if (!parsed || !Array.isArray(parsed.d)) return null;
+        const drawnClean = parsed.d
+          .map((n) => Number(n))
+          .filter((n) => Number.isInteger(n) && n >= 1 && n <= 75);
+        const drawnSet = new Set(drawnClean);
+        const pool = shuffleArray(
+          Array.from({ length: 75 }, (_, i) => i + 1).filter((n) => !drawnSet.has(n))
+        );
+        return {
+          room: String(parsed.r || currentRoom || "0000").toUpperCase(),
+          locked: Boolean(parsed.l),
+          drawn: drawnClean,
+          pool: pool,
+          winner: parsed.w || null,
+          updatedAt: Number(parsed.t) || Date.now()
+        };
+      }
+
+      function saveAndBroadcastRoomState(nextState) {
+        nextState.updatedAt = Date.now();
+        roomState = nextState;
+        const key = roomStorageKey(nextState.room);
+        const syncCode = encodeSyncCode(nextState);
+
+        try {
+          localStorage.setItem(key, JSON.stringify(nextState));
+          localStorage.setItem(key + "_sync", syncCode);
+        } catch (err) {
+          // Ignore storage quota/sandbox issues
+        }
+
+        const msg = {
+          type: "ROOM_STATE_UPDATE",
+          room: nextState.room,
+          state: nextState,
+          syncCode: syncCode
+        };
+
+        if (channel) {
+          try {
+            channel.postMessage(msg);
+          } catch (err) {}
+        }
+
+        try {
+          window.postMessage(msg, "*");
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage(msg, "*");
+          }
+          if (window.top && window.top !== window) {
+            window.top.postMessage(msg, "*");
+          }
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(msg, "*");
+          }
+        } catch (err) {}
+
+        renderAll();
+      }
+
+      function loadRoomStateFromStorage(code) {
+        if (!code) return null;
+        try {
+          const raw = localStorage.getItem(roomStorageKey(code));
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.drawn)) {
+            return parsed;
+          }
+        } catch (err) {}
+        return null;
+      }
+
+      function applyIncomingRoomState(incoming) {
+        if (!incoming || !incoming.room) return;
+        if (currentRoom && String(incoming.room).toUpperCase() !== String(currentRoom).toUpperCase()) {
+          return;
+        }
+        const sig = JSON.stringify({
+          l: Boolean(incoming.locked),
+          d: incoming.drawn || [],
+          w: incoming.winner || null
+        });
+        if (sig === lastAppliedSyncSignature) return;
+        lastAppliedSyncSignature = sig;
+
+        roomState = {
+          room: String(incoming.room).toUpperCase(),
+          locked: Boolean(incoming.locked),
+          drawn: Array.isArray(incoming.drawn) ? incoming.drawn : [],
+          pool: Array.isArray(incoming.pool) ? incoming.pool : [],
+          winner: incoming.winner || null,
+          updatedAt: incoming.updatedAt || Date.now()
+        };
+
+        if (currentRole === "player") {
+          // Prune any marks on numbers that are no longer in drawn list (e.g., if admin reset round)
+          const drawnSet = new Set(roomState.drawn);
+          playerBoard = playerBoard.map((cell) => {
+            if (cell.isFree) return cell;
+            if (cell.marked && !drawnSet.has(cell.num)) {
+              return { ...cell, marked: false };
+            }
+            return cell;
+          });
+        }
+
+        renderAll();
+      }
+
+      // Listeners for real-time sync
+      if (channel) {
+        channel.onmessage = (event) => {
+          const data = event.data;
+          if (data && data.type === "ROOM_STATE_UPDATE" && data.state) {
+            applyIncomingRoomState(data.state);
+          }
+        };
+      }
+
+      window.addEventListener("storage", (event) => {
+        if (!currentRoom || !event.key) return;
+        if (event.key === roomStorageKey(currentRoom) && event.newValue) {
+          try {
+            const parsed = JSON.parse(event.newValue);
+            applyIncomingRoomState(parsed);
+          } catch (err) {}
+        }
+      });
+
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (data && data.type === "ROOM_STATE_UPDATE" && data.state) {
+          applyIncomingRoomState(data.state);
+        }
+      });
+
+      // Periodic poll fallback for same-origin tabs/frames
+      setInterval(() => {
+        if (!currentRoom) return;
+        const stored = loadRoomStateFromStorage(currentRoom);
+        if (stored) {
+          applyIncomingRoomState(stored);
+        }
+      }, 400);
+
+      // DOM elements
+      const lobbyView = document.getElementById("lobbyView");
+      const adminView = document.getElementById("adminView");
+      const playerView = document.getElementById("playerView");
+      const roomPill = document.getElementById("roomPill");
+      const syncPill = document.getElementById("syncPill");
+      const leaveBtn = document.getElementById("leaveBtn");
+
+      const adminRoomInput = document.getElementById("adminRoomInput");
+      const randomRoomCodeBtn = document.getElementById("randomRoomCodeBtn");
+      const createRoomBtn = document.getElementById("createRoomBtn");
+
+      const playerNameInput = document.getElementById("playerNameInput");
+      const joinRoomInput = document.getElementById("joinRoomInput");
+      const joinRoomBtn = document.getElementById("joinRoomBtn");
+
+      const adminRoomLabel = document.getElementById("adminRoomLabel");
+      const adminLockStatus = document.getElementById("adminLockStatus");
+      const adminLatestNum = document.getElementById("adminLatestNum");
+      const adminCountText = document.getElementById("adminCountText");
+      const adminLockStartBtn = document.getElementById("adminLockStartBtn");
+      const adminUnlockBtn = document.getElementById("adminUnlockBtn");
+      const adminDrawBtn = document.getElementById("adminDrawBtn");
+      const adminResetRoundBtn = document.getElementById("adminResetRoundBtn");
+      const adminSyncCodeBox = document.getElementById("adminSyncCodeBox");
+      const copySyncCodeBtn = document.getElementById("copySyncCodeBtn");
+      const adminHistoryChips = document.getElementById("adminHistoryChips");
+      const adminBoard75 = document.getElementById("adminBoard75");
+      const adminWinnerBanner = document.getElementById("adminWinnerBanner");
+      const adminWinnerText = document.getElementById("adminWinnerText");
+      const clearWinnerBtn = document.getElementById("clearWinnerBtn");
+
+      const playerSyncInput = document.getElementById("playerSyncInput");
+      const playerApplySyncBtn = document.getElementById("playerApplySyncBtn");
+      const playerLatestNum = document.getElementById("playerLatestNum");
+      const playerDrawnCount = document.getElementById("playerDrawnCount");
+      const playerBoardLockLabel = document.getElementById("playerBoardLockLabel");
+      const playerDrawnScroll = document.getElementById("playerDrawnScroll");
+      const playerGrid = document.getElementById("playerGrid");
+      const callBingoBtn = document.getElementById("callBingoBtn");
+      const playerShuffleBtn = document.getElementById("playerShuffleBtn");
+      const playerClearMarksBtn = document.getElementById("playerClearMarksBtn");
+      const playerStatusToast = document.getElementById("playerStatusToast");
+      const playerWinnerBanner = document.getElementById("playerWinnerBanner");
+      const playerWinnerText = document.getElementById("playerWinnerText");
+
+      function gen4Code() {
+        return String(Math.floor(1000 + Math.random() * 9000));
+      }
+
+      adminRoomInput.value = gen4Code();
+      joinRoomInput.value = adminRoomInput.value;
+
+      randomRoomCodeBtn.addEventListener("click", () => {
+        adminRoomInput.value = gen4Code();
+      });
+
+      createRoomBtn.addEventListener("click", () => {
+        const code = (adminRoomInput.value || gen4Code()).trim().toUpperCase();
+        currentRole = "admin";
+        currentRoom = code;
+        lastAppliedSyncSignature = "";
+        const existing = loadRoomStateFromStorage(code);
+        const initial = existing || createDefaultRoomState(code);
+        initial.room = code;
+        saveAndBroadcastRoomState(initial);
+      });
+
+      joinRoomBtn.addEventListener("click", () => {
+        const code = (joinRoomInput.value || "").trim().toUpperCase();
+        if (!code) {
+          alert("กรุณากรอกรหัสห้องก่อนครับ");
+          return;
+        }
+        const name = (playerNameInput.value || "ผู้เล่น").trim();
+        currentRole = "player";
+        currentRoom = code;
+        playerName = name;
+        lastAppliedSyncSignature = "";
+        playerBoard = generateScatteredBoard();
+
+        const existing = loadRoomStateFromStorage(code);
+        roomState = existing || createDefaultRoomState(code);
+        renderAll();
+      });
+
+      leaveBtn.addEventListener("click", () => {
+        currentRole = null;
+        currentRoom = "";
+        lastAppliedSyncSignature = "";
+        renderAll();
+      });
+
+      // Admin actions
+      adminLockStartBtn.addEventListener("click", () => {
+        const next = {
+          ...roomState,
+          locked: true
+        };
+        saveAndBroadcastRoomState(next);
+      });
+
+      adminUnlockBtn.addEventListener("click", () => {
+        const next = {
+          ...roomState,
+          locked: false
+        };
+        saveAndBroadcastRoomState(next);
+      });
+
+      adminDrawBtn.addEventListener("click", () => {
+        let pool = Array.isArray(roomState.pool) ? roomState.pool.slice() : [];
+        const drawn = Array.isArray(roomState.drawn) ? roomState.drawn.slice() : [];
+
+        if (pool.length === 0) {
+          pool = shuffleArray(Array.from({ length: 75 }, (_, i) => i + 1));
+        }
+
+        const nextNum = pool.pop();
+        drawn.push(nextNum);
+
+        // Lock boards automatically once admin starts drawing numbers
+        const next = {
+          ...roomState,
+          locked: true,
+          drawn: drawn,
+          pool: pool
+        };
+        saveAndBroadcastRoomState(next);
+      });
+
+      adminResetRoundBtn.addEventListener("click", () => {
+        const next = {
+          ...createDefaultRoomState(currentRoom),
+          locked: false
+        };
+        saveAndBroadcastRoomState(next);
+      });
+
+      clearWinnerBtn.addEventListener("click", () => {
+        const next = {
+          ...roomState,
+          winner: null
+        };
+        saveAndBroadcastRoomState(next);
+      });
+
+      copySyncCodeBtn.addEventListener("click", async () => {
+        const text = adminSyncCodeBox.textContent || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          copySyncCodeBtn.textContent = "คัดลอกแล้ว!";
+          setTimeout(() => {
+            copySyncCodeBtn.textContent = "คัดลอกรหัสซิงก์";
+          }, 1400);
+        } catch (err) {
+          playerSyncInput.value = text;
+          alert("คัดลอกรหัสแล้ว สามารถนำไปวางฝั่งผู้เล่นได้เลยครับ");
+        }
+      });
+
+      // Player sync code apply
+      playerApplySyncBtn.addEventListener("click", () => {
+        const raw = playerSyncInput.value.trim();
+        if (!raw) {
+          setToast("กรุณาวางรหัสซิงก์จากแอดมินก่อนครับ");
+          return;
+        }
+        try {
+          const decoded = decodeSyncCode(raw);
+          if (!decoded) {
+            setToast("รูปแบบรหัสซิงก์ไม่ถูกต้อง");
+            return;
+          }
+          lastAppliedSyncSignature = "";
+          applyIncomingRoomState(decoded);
+          try {
+            localStorage.setItem(roomStorageKey(decoded.room), JSON.stringify(roomState));
+          } catch (err) {}
+          setToast("อัปเดตเลขและสถานะจากแอดมินเรียบร้อยแล้ว");
+        } catch (err) {
+          setToast("ไม่สามารถอ่านรหัสซิงก์ได้ กรุณาตรวจสอบรหัสอีกครั้ง");
+        }
+      });
+
+      function setToast(msg) {
+        playerStatusToast.textContent = msg;
+      }
+
+      function hasValidBingoLine() {
+        const drawnSet = new Set(roomState.drawn || []);
+        const isCellValidMarked = (idx) => {
+          const cell = playerBoard[idx];
+          if (!cell || !cell.marked) return false;
+          if (cell.isFree) return true;
+          return drawnSet.has(cell.num);
+        };
+
+        const lines = [
+          // Rows
+          [0, 1, 2, 3, 4],
+          [5, 6, 7, 8, 9],
+          [10, 11, 12, 13, 14],
+          [15, 16, 17, 18, 19],
+          [20, 21, 22, 23, 24],
+          // Columns
+          [0, 5, 10, 15, 20],
+          [1, 6, 11, 16, 21],
+          [2, 7, 12, 17, 22],
+          [3, 8, 13, 18, 23],
+          [4, 9, 14, 19, 24],
+          // Diagonals
+          [0, 6, 12, 18, 24],
+          [4, 8, 12, 16, 20]
+        ];
+
+        return lines.some((line) => line.every((idx) => isCellValidMarked(idx)));
+      }
+
+      playerShuffleBtn.addEventListener("click", () => {
+        if (roomState.locked) {
+          setToast("แอดมินล็อกกระดานเริ่มเกมแล้ว ไม่สามารถสุ่มตารางใหม่ได้");
+          return;
+        }
+        playerBoard = generateScatteredBoard();
+        setToast("สุ่มตัวเลขบนกระดาน 5×5 ใหม่เรียบร้อยแล้ว");
+        renderPlayer();
+      });
+
+      playerClearMarksBtn.addEventListener("click", () => {
+        playerBoard = playerBoard.map((cell) => (cell.isFree ? cell : { ...cell, marked: false }));
+        setToast("ล้างจุดที่ติ๊กออกแล้ว (ช่อง FREE ยังคงอยู่)");
+        renderPlayer();
+      });
+
+      callBingoBtn.addEventListener("click", () => {
+        if (!hasValidBingoLine()) {
+          setToast("ยังไม่ครบแถวบิงโกที่เลขออกจริง");
+          return;
+        }
+        const next = {
+          ...roomState,
+          winner: {
+            name: playerName || "ผู้เล่น",
+            at: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+          }
+        };
+        saveAndBroadcastRoomState(next);
+        setToast("ส่งสัญญาณ BINGO ไปที่หน้าจอแอดมินแล้ว!");
+      });
+
+      function renderAll() {
+        if (!currentRole || !currentRoom) {
+          lobbyView.classList.remove("hidden");
+          adminView.classList.add("hidden");
+          playerView.classList.add("hidden");
+          leaveBtn.classList.add("hidden");
+          roomPill.textContent = "ยังไม่ได้เข้าห้อง";
+          syncPill.textContent = "พร้อมใช้งาน";
+          return;
+        }
+
+        lobbyView.classList.add("hidden");
+        leaveBtn.classList.remove("hidden");
+        roomPill.textContent =
+          (currentRole === "admin" ? "แอดมิน • " : playerName + " • ") + "ห้อง " + currentRoom;
+        syncPill.textContent = roomState.locked ? "ล็อกกระดานแล้ว" : "เปิดสุ่มตาราง";
+        syncPill.className = roomState.locked ? "pill locked" : "pill live";
+
+        if (currentRole === "admin") {
+          adminView.classList.remove("hidden");
+          playerView.classList.add("hidden");
+          renderAdmin();
+        } else {
+          adminView.classList.add("hidden");
+          playerView.classList.remove("hidden");
+          renderPlayer();
+        }
+      }
+
+      function renderAdmin() {
+        const drawn = roomState.drawn || [];
+        const latest = drawn.length > 0 ? drawn[drawn.length - 1] : "-";
+        const latestSet = new Set(drawn);
+
+        adminRoomLabel.textContent = "ห้อง: " + currentRoom;
+        adminLockStatus.textContent = roomState.locked
+          ? "สถานะ: ล็อกกระดานแล้ว"
+          : "สถานะ: ยังไม่ล็อกกระดาน";
+        adminLockStatus.className = roomState.locked ? "pill locked" : "pill";
+
+        adminLatestNum.textContent = String(latest);
+        adminCountText.textContent = "ออกไปแล้ว " + drawn.length + " / 75 หมายเลข";
+        adminSyncCodeBox.textContent = encodeSyncCode(roomState);
+
+        if (roomState.winner && roomState.winner.name) {
+          adminWinnerBanner.classList.remove("hidden");
+          adminWinnerText.textContent =
+            "BINGO! ผู้ชนะ: " + roomState.winner.name + " (เวลา " + roomState.winner.at + ")";
+        } else {
+          adminWinnerBanner.classList.add("hidden");
+        }
+
+        adminHistoryChips.innerHTML = "";
+        if (drawn.length === 0) {
+          const empty = document.createElement("span");
+          empty.className = "muted";
+          empty.textContent = 'ยังไม่มีเลขที่ออก กด "สุ่มตัวเลขใหม่" ได้เลย';
+          adminHistoryChips.appendChild(empty);
+        } else {
+          for (let i = drawn.length - 1; i >= 0; i--) {
+            const num = drawn[i];
+            const chip = document.createElement("span");
+            chip.className = i === drawn.length - 1 ? "chip latest" : "chip";
+            chip.textContent = String(num);
+            adminHistoryChips.appendChild(chip);
+          }
+        }
+
+        adminBoard75.innerHTML = "";
+        for (let n = 1; n <= 75; n++) {
+          const cell = document.createElement("div");
+          const isDrawn = latestSet.has(n);
+          const isLatest = n === latest;
+          cell.className = "cell-75" + (isLatest ? " latest" : isDrawn ? " drawn" : "");
+          cell.textContent = String(n);
+          adminBoard75.appendChild(cell);
+        }
+      }
+
+      function renderPlayer() {
+        const drawn = roomState.drawn || [];
+        const drawnSet = new Set(drawn);
+        const latest = drawn.length > 0 ? drawn[drawn.length - 1] : "-";
+
+        playerLatestNum.textContent = String(latest);
+        playerDrawnCount.textContent = "เลขที่ออกไปแล้ว (" + drawn.length + "/75)";
+        playerBoardLockLabel.textContent = roomState.locked
+          ? "ล็อกกระดานแล้ว (ห้ามเปลี่ยน)"
+          : "สุ่มตารางได้";
+
+        playerShuffleBtn.disabled = Boolean(roomState.locked);
+
+        if (roomState.winner && roomState.winner.name) {
+          playerWinnerBanner.classList.remove("hidden");
+          playerWinnerText.textContent =
+            "มีผู้บิงโกแล้ว: " + roomState.winner.name + " (" + roomState.winner.at + ")";
+        } else {
+          playerWinnerBanner.classList.add("hidden");
+        }
+
+        playerDrawnScroll.innerHTML = "";
+        if (drawn.length === 0) {
+          const wait = document.createElement("span");
+          wait.className = "muted";
+          wait.style.fontSize = "0.8rem";
+          wait.textContent = "รอแอดมินสุ่มตัวเลข...";
+          playerDrawnScroll.appendChild(wait);
+        } else {
+          for (let i = drawn.length - 1; i >= 0; i--) {
+            const num = drawn[i];
+            const chip = document.createElement("span");
+            chip.className = i === drawn.length - 1 ? "mini-chip latest" : "mini-chip";
+            chip.textContent = String(num);
+            playerDrawnScroll.appendChild(chip);
+          }
+        }
+
+        playerGrid.innerHTML = "";
+        playerBoard.forEach((cell, idx) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const isDrawn = cell.isFree || drawnSet.has(cell.num);
+
+          btn.className =
+            "b-cell" +
+            (cell.isFree ? " free" : "") +
+            (cell.marked ? " marked" : "") +
+            (!isDrawn ? " undrawn-hint" : "");
+
+          btn.textContent = cell.isFree ? "FREE" : String(cell.num);
+
+          btn.addEventListener("click", () => {
+            if (cell.isFree) {
+              setToast("ช่อง FREE เป็นช่องฟรีเปิดใช้งานอยู่แล้วครับ");
+              return;
+            }
+            if (!drawnSet.has(cell.num)) {
+              setToast("เลข " + cell.num + " ยังไม่ออก กดติ๊กไม่ได้ครับ");
+              return;
+            }
+            playerBoard[idx] = { ...cell, marked: !cell.marked };
+            setToast(
+              !cell.marked
+                ? "ติ๊กเลข " + cell.num + " เรียบร้อยแล้ว"
+                : "ยกเลิกติ๊กเลข " + cell.num + " แล้ว"
+            );
+            renderPlayer();
+          });
+
+          playerGrid.appendChild(btn);
+        });
+
+        if (hasValidBingoLine()) {
+          callBingoBtn.classList.remove("hidden");
+        } else {
+          callBingoBtn.classList.add("hidden");
+        }
+      }
+
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
