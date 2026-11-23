@@ -112,7 +112,7 @@
       color: #fcd34d;
     }
 
-    button, input {
+    button, input, select {
       font-family: 'Noto Sans Thai', 'Sarabun', sans-serif;
     }
 
@@ -158,7 +158,7 @@
       border-color: rgba(148, 163, 184, 0.25);
     }
 
-    input[type="text"] {
+    input[type="text"], select {
       background: rgba(9, 13, 22, 0.85);
       border: 1px solid rgba(148, 163, 184, 0.28);
       border-radius: 12px;
@@ -168,7 +168,7 @@
       outline: none;
     }
 
-    input[type="text"]:focus {
+    input[type="text"]:focus, select:focus {
       border-color: var(--accent);
     }
 
@@ -400,6 +400,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
     }
 
     .drawn-scroll {
@@ -604,6 +605,17 @@
           <span class="pill" id="adminLockStatus">สถานะ: ยังไม่ล็อกกระดาน</span>
         </div>
 
+        <div class="field">
+          <label for="adminRuleSelect">กติกาการบิงโกในรอบนี้</label>
+          <select id="adminRuleSelect">
+            <option value="all">ทุกแบบ (แถว/ทแยง + 4 มุม + วงใน)</option>
+            <option value="lines_corners_inner">แถว/ทแยง + 4 มุม (แบบที่ 5) + วงใน (แบบที่ 6)</option>
+            <option value="corners_only">เฉพาะ 4 มุม (แบบที่ 5)</option>
+            <option value="inner_only">เฉพาะวงในรอบ FREE (แบบที่ 6)</option>
+            <option value="lines_only">เฉพาะแถว/คอลัมน์/แนวทแยง</option>
+          </select>
+        </div>
+
         <div class="latest-ball">
           <small>เลขล่าสุด</small>
           <span id="adminLatestNum">-</span>
@@ -696,6 +708,7 @@
         <div class="drawn-list-wrap">
           <div class="drawn-list-title">
             <span id="playerDrawnCount">เลขที่ออกไปแล้ว (0/75)</span>
+            <span style="font-size: 0.76rem; color: #fcd34d;" id="playerRuleLabel">กติกา: แถว/ทแยง + 4 มุม + วงใน</span>
             <span style="font-size: 0.76rem; color: #94a3b8;" id="playerBoardLockLabel">สถานะ: สุ่มตารางได้</span>
           </div>
           <div class="drawn-scroll" id="playerDrawnScroll">
@@ -730,7 +743,7 @@
         </div>
 
         <div class="status-toast" id="playerStatusToast">
-          กดปุ่ม "สุ่มตารางใหม่" ได้จนกว่าแอดมินจะเริ่มเกม • เลขที่ยังไม่ออกกดติ๊กไม่ได้
+          บิงโกได้ทั้งแถว/แนวทแยง, 4 มุม (แบบที่ 5) และวงในรอบ FREE (แบบที่ 6) • เลขที่ยังไม่ออกกดติ๊กไม่ได้
         </div>
       </div>
     </section>
@@ -748,9 +761,38 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const STORAGE_PREFIX = "gift_bingo_room_v3_";
-    const CHANNEL_NAME = "gift_bingo_channel_v3";
+    const STORAGE_PREFIX = "gift_bingo_room_v4_";
+    const CHANNEL_NAME = "gift_bingo_channel_v4";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
+
+    const LINE_PATTERNS = [
+      [0, 1, 2, 3, 4],
+      [5, 6, 7, 8, 9],
+      [10, 11, 12, 13, 14],
+      [15, 16, 17, 18, 19],
+      [20, 21, 22, 23, 24],
+      [0, 5, 10, 15, 20],
+      [1, 6, 11, 16, 21],
+      [2, 7, 12, 17, 22],
+      [3, 8, 13, 18, 23],
+      [4, 9, 14, 19, 24],
+      [0, 6, 12, 18, 24],
+      [4, 8, 12, 16, 20]
+    ];
+
+    // Pattern 5: 4 corners (top-left, top-right, bottom-left, bottom-right)
+    const FOUR_CORNERS_PATTERN = [0, 4, 20, 24];
+
+    // Pattern 6: Inner ring around center FREE cell (index 12)
+    const INNER_RING_PATTERN = [6, 8, 16, 18];
+
+    const RULE_LABELS = {
+      all: "แถว/ทแยง + 4 มุม + วงใน",
+      lines_corners_inner: "แถว/ทแยง + 4 มุม + วงใน",
+      corners_only: "เฉพาะ 4 มุม (แบบที่ 5)",
+      inner_only: "เฉพาะวงใน (แบบที่ 6)",
+      lines_only: "เฉพาะแถว/คอลัมน์/ทแยง"
+    };
 
     let currentRole = null;
     let currentRoom = "";
@@ -765,6 +807,7 @@
       return {
         room: roomCode,
         locked: false,
+        ruleMode: "lines_corners_inner",
         drawn: [],
         pool: shuffleArray(Array.from({ length: 75 }, (_, i) => i + 1)),
         winner: null,
@@ -803,6 +846,7 @@
       const payload = {
         r: state.room,
         l: state.locked ? 1 : 0,
+        m: state.ruleMode || "lines_corners_inner",
         d: state.drawn,
         w: state.winner,
         t: state.updatedAt || Date.now()
@@ -838,6 +882,7 @@
       return {
         room: String(parsed.r || currentRoom || "0000").toUpperCase(),
         locked: Boolean(parsed.l),
+        ruleMode: parsed.m || "lines_corners_inner",
         drawn: drawnClean,
         pool: pool,
         winner: parsed.w || null,
@@ -865,6 +910,7 @@
           applyIncomingRoomState({
             room: cleanCode,
             locked: Boolean(val.locked),
+            ruleMode: val.ruleMode || "lines_corners_inner",
             drawn: drawnList,
             pool: poolList,
             winner: val.winner || null,
@@ -886,12 +932,14 @@
 
     function saveAndBroadcastRoomState(nextState) {
       nextState.updatedAt = Date.now();
+      nextState.ruleMode = nextState.ruleMode || "lines_corners_inner";
       roomState = nextState;
       const key = roomStorageKey(nextState.room);
       const syncCode = encodeSyncCode(nextState);
 
       const sig = JSON.stringify({
         l: Boolean(nextState.locked),
+        m: nextState.ruleMode,
         d: nextState.drawn || [],
         w: nextState.winner || null
       });
@@ -902,6 +950,7 @@
         set(ref(db, "rooms/" + cleanCode), {
           room: cleanCode,
           locked: Boolean(nextState.locked),
+          ruleMode: nextState.ruleMode,
           drawn: Array.isArray(nextState.drawn) ? nextState.drawn : [],
           pool: Array.isArray(nextState.pool) ? nextState.pool : [],
           winner: nextState.winner || null,
@@ -965,6 +1014,7 @@
       }
       const sig = JSON.stringify({
         l: Boolean(incoming.locked),
+        m: incoming.ruleMode || "lines_corners_inner",
         d: incoming.drawn || [],
         w: incoming.winner || null
       });
@@ -974,6 +1024,7 @@
       roomState = {
         room: String(incoming.room).toUpperCase(),
         locked: Boolean(incoming.locked),
+        ruleMode: incoming.ruleMode || "lines_corners_inner",
         drawn: Array.isArray(incoming.drawn) ? incoming.drawn : [],
         pool: Array.isArray(incoming.pool) ? incoming.pool : [],
         winner: incoming.winner || null,
@@ -1041,6 +1092,7 @@
 
     const adminRoomLabel = document.getElementById("adminRoomLabel");
     const adminLockStatus = document.getElementById("adminLockStatus");
+    const adminRuleSelect = document.getElementById("adminRuleSelect");
     const adminLatestNum = document.getElementById("adminLatestNum");
     const adminCountText = document.getElementById("adminCountText");
     const adminLockStartBtn = document.getElementById("adminLockStartBtn");
@@ -1059,6 +1111,7 @@
     const playerApplySyncBtn = document.getElementById("playerApplySyncBtn");
     const playerLatestNum = document.getElementById("playerLatestNum");
     const playerDrawnCount = document.getElementById("playerDrawnCount");
+    const playerRuleLabel = document.getElementById("playerRuleLabel");
     const playerBoardLockLabel = document.getElementById("playerBoardLockLabel");
     const playerDrawnScroll = document.getElementById("playerDrawnScroll");
     const playerGrid = document.getElementById("playerGrid");
@@ -1088,6 +1141,7 @@
       const existing = loadRoomStateFromStorage(code);
       const initial = existing || createDefaultRoomState(code);
       initial.room = code;
+      initial.ruleMode = initial.ruleMode || "lines_corners_inner";
       attachRoomRealtimeListener(code);
       saveAndBroadcastRoomState(initial);
     });
@@ -1117,6 +1171,14 @@
       currentRoom = "";
       lastAppliedSyncSignature = "";
       renderAll();
+    });
+
+    adminRuleSelect.addEventListener("change", () => {
+      const next = {
+        ...roomState,
+        ruleMode: adminRuleSelect.value
+      };
+      saveAndBroadcastRoomState(next);
     });
 
     adminLockStartBtn.addEventListener("click", () => {
@@ -1158,6 +1220,7 @@
     adminResetRoundBtn.addEventListener("click", () => {
       const next = {
         ...createDefaultRoomState(currentRoom),
+        ruleMode: roomState.ruleMode || "lines_corners_inner",
         locked: false
       };
       saveAndBroadcastRoomState(next);
@@ -1209,7 +1272,7 @@
       playerStatusToast.textContent = msg;
     }
 
-    function hasValidBingoLine() {
+    function getMatchedBingoRuleLabel() {
       const drawnSet = new Set(roomState.drawn || []);
       const isCellValidMarked = (idx) => {
         const cell = playerBoard[idx];
@@ -1218,22 +1281,29 @@
         return drawnSet.has(cell.num);
       };
 
-      const lines = [
-        [0, 1, 2, 3, 4],
-        [5, 6, 7, 8, 9],
-        [10, 11, 12, 13, 14],
-        [15, 16, 17, 18, 19],
-        [20, 21, 22, 23, 24],
-        [0, 5, 10, 15, 20],
-        [1, 6, 11, 16, 21],
-        [2, 7, 12, 17, 22],
-        [3, 8, 13, 18, 23],
-        [4, 9, 14, 19, 24],
-        [0, 6, 12, 18, 24],
-        [4, 8, 12, 16, 20]
-      ];
+      const mode = roomState.ruleMode || "lines_corners_inner";
+      const checkCorners = () => FOUR_CORNERS_PATTERN.every((idx) => isCellValidMarked(idx));
+      const checkInner = () => INNER_RING_PATTERN.every((idx) => isCellValidMarked(idx));
+      const checkLines = () => LINE_PATTERNS.some((line) => line.every((idx) => isCellValidMarked(idx)));
 
-      return lines.some((line) => line.every((idx) => isCellValidMarked(idx)));
+      if (mode === "corners_only") {
+        return checkCorners() ? "4 มุม (แบบที่ 5)" : null;
+      }
+      if (mode === "inner_only") {
+        return checkInner() ? "วงใน (แบบที่ 6)" : null;
+      }
+      if (mode === "lines_only") {
+        return checkLines() ? "แถว/คอลัมน์/ทแยง" : null;
+      }
+
+      if (checkCorners()) return "4 มุม (แบบที่ 5)";
+      if (checkInner()) return "วงใน (แบบที่ 6)";
+      if (checkLines()) return "แถว/คอลัมน์/ทแยง";
+      return null;
+    }
+
+    function hasValidBingoLine() {
+      return Boolean(getMatchedBingoRuleLabel());
     }
 
     playerShuffleBtn.addEventListener("click", () => {
@@ -1253,19 +1323,21 @@
     });
 
     callBingoBtn.addEventListener("click", () => {
-      if (!hasValidBingoLine()) {
-        setToast("ยังไม่ครบแถวบิงโกที่เลขออกจริง");
+      const matchedLabel = getMatchedBingoRuleLabel();
+      if (!matchedLabel) {
+        setToast("ยังไม่ครบเงื่อนไขบิงโกที่เลขออกจริง");
         return;
       }
       const next = {
         ...roomState,
         winner: {
           name: playerName || "ผู้เล่น",
+          rule: matchedLabel,
           at: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
         }
       };
       saveAndBroadcastRoomState(next);
-      setToast("ส่งสัญญาณ BINGO ไปที่หน้าจอแอดมินแล้ว!");
+      setToast("ส่งสัญญาณ BINGO (" + matchedLabel + ") ไปที่หน้าจอแอดมินแล้ว!");
     });
 
     function renderAll() {
@@ -1303,6 +1375,7 @@
       const latestSet = new Set(drawn);
 
       adminRoomLabel.textContent = "ห้อง: " + currentRoom;
+      adminRuleSelect.value = roomState.ruleMode || "lines_corners_inner";
       adminLockStatus.textContent = roomState.locked
         ? "สถานะ: ล็อกกระดานแล้ว"
         : "สถานะ: ยังไม่ล็อกกระดาน";
@@ -1314,8 +1387,9 @@
 
       if (roomState.winner && roomState.winner.name) {
         adminWinnerBanner.classList.remove("hidden");
+        const ruleTxt = roomState.winner.rule ? " [" + roomState.winner.rule + "]" : "";
         adminWinnerText.textContent =
-          "BINGO! ผู้ชนะ: " + roomState.winner.name + " (เวลา " + roomState.winner.at + ")";
+          "BINGO! ผู้ชนะ: " + roomState.winner.name + ruleTxt + " (เวลา " + roomState.winner.at + ")";
       } else {
         adminWinnerBanner.classList.add("hidden");
       }
@@ -1354,6 +1428,7 @@
 
       playerLatestNum.textContent = String(latest);
       playerDrawnCount.textContent = "เลขที่ออกไปแล้ว (" + drawn.length + "/75)";
+      playerRuleLabel.textContent = "กติกา: " + (RULE_LABELS[roomState.ruleMode] || RULE_LABELS.lines_corners_inner);
       playerBoardLockLabel.textContent = roomState.locked
         ? "ล็อกกระดานแล้ว (ห้ามเปลี่ยน)"
         : "สุ่มตารางได้";
@@ -1362,8 +1437,9 @@
 
       if (roomState.winner && roomState.winner.name) {
         playerWinnerBanner.classList.remove("hidden");
+        const ruleTxt = roomState.winner.rule ? " (" + roomState.winner.rule + ")" : "";
         playerWinnerText.textContent =
-          "มีผู้บิงโกแล้ว: " + roomState.winner.name + " (" + roomState.winner.at + ")";
+          "มีผู้บิงโกแล้ว: " + roomState.winner.name + ruleTxt + " (" + roomState.winner.at + ")";
       } else {
         playerWinnerBanner.classList.add("hidden");
       }
