@@ -552,7 +552,6 @@
 </head>
 <body>
   <div class="app">
-    <!-- Top Bar -->
     <header class="topbar">
       <div class="brand">
         <span class="brand-badge">GIFT BINGO</span>
@@ -560,12 +559,11 @@
       </div>
       <div class="topbar-actions" id="topActions">
         <span class="pill" id="roomPill">ยังไม่ได้เข้าห้อง</span>
-        <span class="pill live" id="syncPill">พร้อมใช้งาน</span>
+        <span class="pill live" id="syncPill">เรียลไทม์พร้อมใช้งาน</span>
         <button class="btn-ghost hidden" id="leaveBtn" type="button">ออกจากห้อง</button>
       </div>
     </header>
 
-    <!-- Lobby View -->
     <section id="lobbyView" class="lobby-grid">
       <div class="card">
         <h2>สร้างห้องสำหรับแอดมิน / พิธีกร</h2>
@@ -599,7 +597,6 @@
       </div>
     </section>
 
-    <!-- Admin View -->
     <section id="adminView" class="admin-layout hidden">
       <div class="card">
         <div class="sync-row" style="justify-content: space-between;">
@@ -672,7 +669,6 @@
       </div>
     </section>
 
-    <!-- Player View -->
     <section id="playerView" class="player-screen hidden">
       <div id="playerWinnerBanner" class="winner-banner hidden">
         <span id="playerWinnerText">ประกาศผู้บิงโก!</span>
@@ -756,7 +752,7 @@
     const CHANNEL_NAME = "gift_bingo_channel_v3";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
-    let currentRole = null; // 'admin' | 'player'
+    let currentRole = null;
     let currentRoom = "";
     let playerName = "";
     let playerBoard = [];
