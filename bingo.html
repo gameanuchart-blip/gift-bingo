@@ -132,6 +132,10 @@
       transform: translateY(-1px);
     }
 
+    button:active:not(:disabled) {
+      transform: translateY(1px) scale(0.985);
+    }
+
     button:disabled {
       opacity: 0.42;
       cursor: not-allowed;
@@ -156,6 +160,18 @@
     .btn-ghost {
       background: rgba(30, 41, 59, 0.85);
       border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    .btn-sound-on {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: rgba(16, 185, 129, 0.45);
+      color: #a7f3d0;
+    }
+
+    .btn-sound-off {
+      background: rgba(244, 63, 94, 0.16);
+      border-color: rgba(244, 63, 94, 0.4);
+      color: #fda4af;
     }
 
     input[type="text"], select {
@@ -279,6 +295,16 @@
       font-size: 2.35rem;
       font-weight: 800;
       line-height: 1.05;
+    }
+
+    .ball-pop {
+      animation: ballPopAnim 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @keyframes ballPopAnim {
+      0% { transform: scale(0.76); }
+      65% { transform: scale(1.08); }
+      100% { transform: scale(1); }
     }
 
     .history-chips {
@@ -682,6 +708,7 @@
       <div class="topbar-actions" id="topActions">
         <span class="pill" id="roomPill">ยังไม่ได้เข้าห้อง</span>
         <span class="pill live" id="syncPill">เรียลไทม์พร้อมใช้งาน</span>
+        <button class="btn-sound-on" id="soundToggleBtn" type="button">เสียง: เปิด</button>
         <button class="btn-ghost hidden" id="leaveBtn" type="button">ออกจากห้อง</button>
       </div>
     </header>
@@ -737,7 +764,7 @@
           </select>
         </div>
 
-        <div class="latest-ball">
+        <div class="latest-ball" id="adminLatestBall">
           <small>เลขล่าสุด</small>
           <span id="adminLatestNum">-</span>
         </div>
@@ -838,7 +865,7 @@
       </div>
 
       <div class="drawn-banner">
-        <div class="now-box">
+        <div class="now-box" id="playerNowBox">
           <small>เลขล่าสุด</small>
           <strong id="playerLatestNum">-</strong>
         </div>
@@ -901,8 +928,9 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const STORAGE_PREFIX = "gift_bingo_room_v6_";
-    const CHANNEL_NAME = "gift_bingo_channel_v6";
+    const STORAGE_PREFIX = "gift_bingo_room_v7_";
+    const SOUND_PREF_KEY = "gift_bingo_sound_enabled_v1";
+    const CHANNEL_NAME = "gift_bingo_channel_v7";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
     const LINE_PATTERNS = [
@@ -931,6 +959,242 @@
       lines_only: "เฉพาะแถว/คอลัมน์/ทแยง"
     };
 
+    // --- Sound & Voice Engine ---
+    let soundEnabled = (() => {
+      try {
+        const saved = localStorage.getItem(SOUND_PREF_KEY);
+        return saved === null ? true : saved === "1";
+      } catch (err) {
+        return true;
+      }
+    })();
+
+    let audioCtx = null;
+    let bgmTimer = null;
+    let bgmStep = 0;
+    let lastAnnouncedLatest = null;
+    let lastAnnouncedWinnerKey = "";
+
+    function ensureAudioContext() {
+      if (!soundEnabled) return null;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return null;
+      if (!audioCtx) {
+        audioCtx = new AudioContextClass();
+      }
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+      return audioCtx;
+    }
+
+    function playButtonPressSound() {
+      if (!soundEnabled) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(210, now);
+      osc.frequency.exponentialRampToValueAtTime(78, now + 0.045);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.11, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.05);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.055);
+    }
+
+    function playNumberAppearSound() {
+      if (!soundEnabled) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(523.25, now); // C5
+      osc1.frequency.exponentialRampToValueAtTime(783.99, now + 0.09); // G5
+
+      gain1.gain.setValueAtTime(0.001, now);
+      gain1.gain.linearRampToValueAtTime(0.12, now + 0.012);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.15);
+    }
+
+    function playBingoCheerSound() {
+      if (!soundEnabled) return;
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const chordNotes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      chordNotes.forEach((freq, idx) => {
+        const startAt = now + idx * 0.075;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, startAt);
+
+        gain.gain.setValueAtTime(0.001, startAt);
+        gain.gain.linearRampToValueAtTime(0.13, startAt + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.42);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startAt);
+        osc.stop(startAt + 0.44);
+      });
+    }
+
+    function pickFemaleThaiVoice() {
+      if (!("speechSynthesis" in window)) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (!voices.length) return null;
+
+      const thaiVoices = voices.filter((v) => /th/i.test(v.lang || ""));
+      const pool = thaiVoices.length ? thaiVoices : voices;
+
+      const femaleKeywords = /(female|woman|girl|premwadee|achara|niwat|kanya|siri|google ไทย|thai female)/i;
+      const maleKeywords = /(male|man|boy|narong|somchai)/i;
+
+      const matchedFemale = pool.find((v) => femaleKeywords.test(v.name || ""));
+      if (matchedFemale) return matchedFemale;
+
+      if (thaiVoices.length) {
+        const nonMaleThai = thaiVoices.find((v) => !maleKeywords.test(v.name || ""));
+        return nonMaleThai || thaiVoices[0];
+      }
+      return null;
+    }
+
+    function speakThaiText(text, pitch = 1.18, rate = 1.0) {
+      if (!soundEnabled || !("speechSynthesis" in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "th-TH";
+        utter.pitch = pitch;
+        utter.rate = rate;
+        utter.volume = 0.95;
+        const voice = pickFemaleThaiVoice();
+        if (voice) {
+          utter.voice = voice;
+        }
+        window.speechSynthesis.speak(utter);
+      } catch (err) {}
+    }
+
+    function announceDrawnNumberFemale(num) {
+      if (!soundEnabled) return;
+      speakThaiText("หมายเลข " + num, 1.2, 1.02);
+    }
+
+    function announceBingoCheerVoice() {
+      if (!soundEnabled) return;
+      setTimeout(() => {
+        speakThaiText("เย้ บิงโกแล้ว!", 1.24, 1.05);
+      }, 240);
+    }
+
+    // Gentle soft background music loop (low volume)
+    const BGM_MELODY = [
+      523.25, 0, 659.25, 0, 783.99, 659.25, 587.33, 0,
+      493.88, 0, 587.33, 0, 659.25, 587.33, 523.25, 0
+    ];
+
+    function playSoftBgmStep() {
+      if (!soundEnabled) return;
+      const ctx = ensureAudioContext();
+      if (!ctx || ctx.state !== "running") return;
+
+      const freq = BGM_MELODY[bgmStep % BGM_MELODY.length];
+      bgmStep += 1;
+      if (!freq) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.022, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.45);
+    }
+
+    function startSoftBgm() {
+      stopSoftBgm();
+      if (!soundEnabled) return;
+      bgmTimer = setInterval(playSoftBgmStep, 460);
+    }
+
+    function stopSoftBgm() {
+      if (bgmTimer) {
+        clearInterval(bgmTimer);
+        bgmTimer = null;
+      }
+    }
+
+    function stopAllSoundsNow() {
+      stopSoftBgm();
+      if ("speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (err) {}
+      }
+    }
+
+    function updateSoundToggleUi() {
+      const btn = document.getElementById("soundToggleBtn");
+      if (!btn) return;
+      if (soundEnabled) {
+        btn.textContent = "เสียง: เปิด";
+        btn.className = "btn-sound-on";
+      } else {
+        btn.textContent = "เสียง: ปิด";
+        btn.className = "btn-sound-off";
+      }
+    }
+
+    if ("speechSynthesis" in window && typeof window.speechSynthesis.addEventListener === "function") {
+      window.speechSynthesis.addEventListener("voiceschanged", () => {
+        pickFemaleThaiVoice();
+      });
+    }
+
+    // Play tactile button press sound on any button click
+    document.addEventListener(
+      "click",
+      (e) => {
+        const targetBtn = e.target && e.target.closest ? e.target.closest("button") : null;
+        if (!targetBtn || targetBtn.disabled) return;
+        if (targetBtn.id === "soundToggleBtn") return;
+        if (soundEnabled) {
+          ensureAudioContext();
+          if (!bgmTimer) startSoftBgm();
+          playButtonPressSound();
+        }
+      },
+      true
+    );
+
+    // --- Game Logic ---
     let currentRole = null;
     let currentRoom = "";
     let playerId = "";
@@ -942,6 +1206,7 @@
     let lastLocalWriteAt = 0;
     let activeDbRef = null;
     let renderScheduled = false;
+    let prevRenderedLatest = null;
 
     let roomState = createDefaultRoomState("");
 
@@ -1216,7 +1481,6 @@
           updatedAt: nextState.updatedAt
         }).catch(() => {});
 
-        // Also keep flat fields in sync for compatibility
         set(ref(db, "rooms/" + cleanCode + "/locked"), Boolean(nextState.locked)).catch(() => {});
         set(ref(db, "rooms/" + cleanCode + "/ruleMode"), nextState.ruleMode).catch(() => {});
         set(ref(db, "rooms/" + cleanCode + "/drawn"), Array.isArray(nextState.drawn) ? nextState.drawn : []).catch(() => {});
@@ -1401,8 +1665,10 @@
 
     window.addEventListener("beforeunload", () => {
       removePlayerPresenceFromRoom();
+      stopAllSoundsNow();
     });
 
+    const soundToggleBtn = document.getElementById("soundToggleBtn");
     const lobbyView = document.getElementById("lobbyView");
     const adminView = document.getElementById("adminView");
     const playerView = document.getElementById("playerView");
@@ -1421,6 +1687,7 @@
     const adminRoomLabel = document.getElementById("adminRoomLabel");
     const adminLockStatus = document.getElementById("adminLockStatus");
     const adminRuleSelect = document.getElementById("adminRuleSelect");
+    const adminLatestBall = document.getElementById("adminLatestBall");
     const adminLatestNum = document.getElementById("adminLatestNum");
     const adminCountText = document.getElementById("adminCountText");
     const adminLockStartBtn = document.getElementById("adminLockStartBtn");
@@ -1439,6 +1706,7 @@
 
     const playerSyncInput = document.getElementById("playerSyncInput");
     const playerApplySyncBtn = document.getElementById("playerApplySyncBtn");
+    const playerNowBox = document.getElementById("playerNowBox");
     const playerLatestNum = document.getElementById("playerLatestNum");
     const playerDrawnCount = document.getElementById("playerDrawnCount");
     const playerRuleLabel = document.getElementById("playerRuleLabel");
@@ -1452,6 +1720,22 @@
     const playerStatusToast = document.getElementById("playerStatusToast");
     const playerWinnerBanner = document.getElementById("playerWinnerBanner");
     const playerWinnerText = document.getElementById("playerWinnerText");
+
+    soundToggleBtn.addEventListener("click", () => {
+      soundEnabled = !soundEnabled;
+      try {
+        localStorage.setItem(SOUND_PREF_KEY, soundEnabled ? "1" : "0");
+      } catch (err) {}
+      updateSoundToggleUi();
+
+      if (soundEnabled) {
+        ensureAudioContext();
+        playButtonPressSound();
+        startSoftBgm();
+      } else {
+        stopAllSoundsNow();
+      }
+    });
 
     function gen4Code() {
       return String(Math.floor(1000 + Math.random() * 9000));
@@ -1469,11 +1753,15 @@
       currentRole = "admin";
       currentRoom = code;
       lastAppliedSignature = "";
+      lastAnnouncedLatest = null;
+      lastAnnouncedWinnerKey = "";
+      prevRenderedLatest = null;
       playersMap = loadPlayersFromStorage(code);
       const existing = loadRoomStateFromStorage(code);
       const initial = existing || createDefaultRoomState(code);
       initial.room = code;
       initial.ruleMode = initial.ruleMode || "lines_corners_inner";
+      if (soundEnabled) startSoftBgm();
       attachRoomRealtimeListener(code);
       saveAndBroadcastRoomState(initial);
     });
@@ -1490,11 +1778,18 @@
       playerId = generatePlayerId();
       playerName = name;
       lastAppliedSignature = "";
+      lastAnnouncedWinnerKey = "";
+      prevRenderedLatest = null;
 
       const existing = loadRoomStateFromStorage(code);
       roomState = existing || createDefaultRoomState(code);
+      lastAnnouncedLatest =
+        Array.isArray(roomState.drawn) && roomState.drawn.length > 0
+          ? roomState.drawn[roomState.drawn.length - 1]
+          : null;
       playerBoard = applyAutoMarksToBoard(generateScatteredBoard(), roomState.drawn);
       playersMap = loadPlayersFromStorage(code);
+      if (soundEnabled) startSoftBgm();
       attachRoomRealtimeListener(code);
       syncPlayerPresenceToRoom();
       scheduleRender();
@@ -1507,6 +1802,9 @@
       currentRoom = "";
       playerId = "";
       lastAppliedSignature = "";
+      lastAnnouncedLatest = null;
+      lastAnnouncedWinnerKey = "";
+      prevRenderedLatest = null;
       scheduleRender();
     });
 
@@ -1555,6 +1853,9 @@
     });
 
     adminResetRoundBtn.addEventListener("click", () => {
+      lastAnnouncedLatest = null;
+      lastAnnouncedWinnerKey = "";
+      prevRenderedLatest = null;
       const next = {
         ...createDefaultRoomState(currentRoom),
         ruleMode: roomState.ruleMode || "lines_corners_inner",
@@ -1564,6 +1865,7 @@
     });
 
     clearWinnerBtn.addEventListener("click", () => {
+      lastAnnouncedWinnerKey = "";
       const next = {
         ...roomState,
         winner: null
@@ -1692,7 +1994,37 @@
       setToast("ส่งสัญญาณ BINGO (" + matchedLabel + ") ไปที่หน้าจอแอดมินแล้ว!");
     });
 
+    function triggerPopAnimation(el) {
+      if (!el) return;
+      el.classList.remove("ball-pop");
+      void el.offsetWidth;
+      el.classList.add("ball-pop");
+    }
+
+    function handleAudioEventsForCurrentState() {
+      if (!soundEnabled || !currentRole || !currentRoom) return;
+      const drawn = roomState.drawn || [];
+      const latest = drawn.length > 0 ? drawn[drawn.length - 1] : null;
+
+      if (latest !== null && latest !== lastAnnouncedLatest) {
+        lastAnnouncedLatest = latest;
+        playNumberAppearSound();
+        announceDrawnNumberFemale(latest);
+      }
+
+      if (roomState.winner && roomState.winner.name) {
+        const wKey = roomState.winner.name + "|" + (roomState.winner.at || "");
+        if (wKey !== lastAnnouncedWinnerKey) {
+          lastAnnouncedWinnerKey = wKey;
+          playBingoCheerSound();
+          announceBingoCheerVoice();
+        }
+      }
+    }
+
     function renderAll() {
+      updateSoundToggleUi();
+
       if (!currentRole || !currentRoom) {
         lobbyView.classList.remove("hidden");
         adminView.classList.add("hidden");
@@ -1719,6 +2051,8 @@
         playerView.classList.remove("hidden");
         renderPlayer();
       }
+
+      handleAudioEventsForCurrentState();
     }
 
     function renderAdminPlayersGrid() {
@@ -1785,7 +2119,12 @@
         : "สถานะ: ยังไม่ล็อกกระดาน";
       adminLockStatus.className = roomState.locked ? "pill locked" : "pill";
 
+      const isNewLatest = latest !== "-" && latest !== prevRenderedLatest;
       adminLatestNum.textContent = String(latest);
+      if (isNewLatest) {
+        triggerPopAnimation(adminLatestBall);
+      }
+
       adminCountText.textContent = "ออกไปแล้ว " + drawn.length + " / 75 หมายเลข";
       adminSyncCodeBox.textContent = encodeSyncCode(roomState);
 
@@ -1825,6 +2164,7 @@
       }
 
       renderAdminPlayersGrid();
+      prevRenderedLatest = latest;
     }
 
     function renderPlayer() {
@@ -1832,7 +2172,12 @@
       const drawnSet = new Set(drawn);
       const latest = drawn.length > 0 ? drawn[drawn.length - 1] : "-";
 
+      const isNewLatest = latest !== "-" && latest !== prevRenderedLatest;
       playerLatestNum.textContent = String(latest);
+      if (isNewLatest) {
+        triggerPopAnimation(playerNowBox);
+      }
+
       playerDrawnCount.textContent = "เลขที่ออกไปแล้ว (" + drawn.length + "/75)";
       playerRuleLabel.textContent = "กติกา: " + (RULE_LABELS[roomState.ruleMode] || RULE_LABELS.lines_corners_inner);
       playerBoardLockLabel.textContent = roomState.locked
@@ -1910,8 +2255,11 @@
       } else {
         callBingoBtn.classList.add("hidden");
       }
+
+      prevRenderedLatest = latest;
     }
 
+    updateSoundToggleUi();
     renderAll();
   </script>
 </body>
