@@ -125,7 +125,7 @@
       font-weight: 700;
       color: var(--text);
       background: var(--bg-2);
-      transition: transform 0.1s ease, opacity 0.15s ease, background 0.15s ease;
+      transition: transform 0.08s ease, opacity 0.12s ease, background 0.12s ease;
     }
 
     button:hover:not(:disabled) {
@@ -343,7 +343,6 @@
       border-color: #fef08a;
     }
 
-    /* Admin players live mini-board grid (dots only, no numbers) */
     .players-header-row {
       display: flex;
       flex-wrap: wrap;
@@ -623,8 +622,14 @@
 
     .player-btn-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
+    }
+
+    @media (max-width: 480px) {
+      .player-btn-row {
+        grid-template-columns: 1fr;
+      }
     }
 
     .bingo-call-btn {
@@ -866,6 +871,9 @@
         </button>
 
         <div class="player-btn-row">
+          <button class="btn-emerald" id="playerAutoMarkBtn" type="button">
+            ติ๊กอัตโนมัติ: เปิด
+          </button>
           <button class="btn-indigo" id="playerShuffleBtn" type="button">
             สุ่มตารางใหม่
           </button>
@@ -875,7 +883,7 @@
         </div>
 
         <div class="status-toast" id="playerStatusToast">
-          บิงโกได้ทั้งแถว/แนวทแยง, 4 มุม (แบบที่ 5) และวงในรอบ FREE (แบบที่ 6) • เลขที่ยังไม่ออกกดติ๊กไม่ได้
+          เปิดโหมดติ๊กอัตโนมัติอยู่ • เมื่อเลขออกตรงตารางระบบจะติ๊กให้ทันทีโดยไม่ต้องจิ้มเอง
         </div>
       </div>
     </section>
@@ -893,8 +901,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const STORAGE_PREFIX = "gift_bingo_room_v5_";
-    const CHANNEL_NAME = "gift_bingo_channel_v5";
+    const STORAGE_PREFIX = "gift_bingo_room_v6_";
+    const CHANNEL_NAME = "gift_bingo_channel_v6";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
     const LINE_PATTERNS = [
@@ -928,11 +936,23 @@
     let playerId = "";
     let playerName = "";
     let playerBoard = [];
+    let autoMarkEnabled = true;
     let playersMap = {};
-    let lastAppliedSyncSignature = "";
+    let lastAppliedSignature = "";
+    let lastLocalWriteAt = 0;
     let activeDbRef = null;
+    let renderScheduled = false;
 
     let roomState = createDefaultRoomState("");
+
+    function scheduleRender() {
+      if (renderScheduled) return;
+      renderScheduled = true;
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        renderAll();
+      });
+    }
 
     function createDefaultRoomState(roomCode) {
       return {
@@ -967,6 +987,21 @@
         }
       }
       return cells;
+    }
+
+    function applyAutoMarksToBoard(board, drawnList) {
+      if (!autoMarkEnabled) return board;
+      const drawnSet = new Set(drawnList || []);
+      let changed = false;
+      const nextBoard = board.map((cell, idx) => {
+        if (idx === 12 || cell.isFree) return cell;
+        if (drawnSet.has(cell.num) && !cell.marked) {
+          changed = true;
+          return { ...cell, marked: true };
+        }
+        return cell;
+      });
+      return changed ? nextBoard : board;
     }
 
     function generatePlayerId() {
@@ -1110,7 +1145,7 @@
         (snapshot) => {
           if (!snapshot.exists()) {
             playersMap = {};
-            renderAll();
+            scheduleRender();
             return;
           }
           const val = snapshot.val();
@@ -1120,9 +1155,11 @@
             ? val.pool
             : shuffleArray(Array.from({ length: 75 }, (_, i) => i + 1).filter((n) => !drawnSet.has(n)));
 
-          playersMap = val.players && typeof val.players === "object" ? val.players : {};
+          const nextPlayers = val.players && typeof val.players === "object" ? val.players : {};
+          const playersChanged = JSON.stringify(nextPlayers) !== JSON.stringify(playersMap);
+          playersMap = nextPlayers;
 
-          applyIncomingRoomState({
+          const stateChanged = applyIncomingRoomState({
             room: cleanCode,
             locked: Boolean(val.locked),
             ruleMode: val.ruleMode || "lines_corners_inner",
@@ -1131,6 +1168,10 @@
             winner: val.winner || null,
             updatedAt: Number(val.updatedAt) || Date.now()
           });
+
+          if (!stateChanged && playersChanged) {
+            scheduleRender();
+          }
         },
         (err) => {
           console.error("Realtime listener error:", err);
@@ -1146,9 +1187,12 @@
     }
 
     function saveAndBroadcastRoomState(nextState) {
-      nextState.updatedAt = Date.now();
+      const now = Date.now();
+      nextState.updatedAt = now;
       nextState.ruleMode = nextState.ruleMode || "lines_corners_inner";
+      lastLocalWriteAt = now;
       roomState = nextState;
+
       const key = roomStorageKey(nextState.room);
       const syncCode = encodeSyncCode(nextState);
 
@@ -1158,11 +1202,21 @@
         d: nextState.drawn || [],
         w: nextState.winner || null
       });
-      lastAppliedSyncSignature = sig;
+      lastAppliedSignature = sig;
 
       const cleanCode = String(nextState.room || "").trim().toUpperCase();
       if (cleanCode) {
-        set(ref(db, "rooms/" + cleanCode + "/room"), cleanCode).catch(() => {});
+        set(ref(db, "rooms/" + cleanCode + "/state"), {
+          room: cleanCode,
+          locked: Boolean(nextState.locked),
+          ruleMode: nextState.ruleMode,
+          drawn: Array.isArray(nextState.drawn) ? nextState.drawn : [],
+          pool: Array.isArray(nextState.pool) ? nextState.pool : [],
+          winner: nextState.winner || null,
+          updatedAt: nextState.updatedAt
+        }).catch(() => {});
+
+        // Also keep flat fields in sync for compatibility
         set(ref(db, "rooms/" + cleanCode + "/locked"), Boolean(nextState.locked)).catch(() => {});
         set(ref(db, "rooms/" + cleanCode + "/ruleMode"), nextState.ruleMode).catch(() => {});
         set(ref(db, "rooms/" + cleanCode + "/drawn"), Array.isArray(nextState.drawn) ? nextState.drawn : []).catch(() => {});
@@ -1202,7 +1256,7 @@
         }
       } catch (err) {}
 
-      renderAll();
+      scheduleRender();
     }
 
     function loadRoomStateFromStorage(code) {
@@ -1230,18 +1284,28 @@
     }
 
     function applyIncomingRoomState(incoming) {
-      if (!incoming || !incoming.room) return;
+      if (!incoming || !incoming.room) return false;
       if (currentRoom && String(incoming.room).toUpperCase() !== String(currentRoom).toUpperCase()) {
-        return;
+        return false;
       }
+
+      const incomingUpdated = Number(incoming.updatedAt) || 0;
+      if (
+        currentRole === "admin" &&
+        lastLocalWriteAt > 0 &&
+        incomingUpdated < lastLocalWriteAt
+      ) {
+        return false;
+      }
+
       const sig = JSON.stringify({
         l: Boolean(incoming.locked),
         m: incoming.ruleMode || "lines_corners_inner",
         d: incoming.drawn || [],
         w: incoming.winner || null
       });
-      const stateChanged = sig !== lastAppliedSyncSignature;
-      lastAppliedSyncSignature = sig;
+      if (sig === lastAppliedSignature) return false;
+      lastAppliedSignature = sig;
 
       roomState = {
         room: String(incoming.room).toUpperCase(),
@@ -1250,7 +1314,7 @@
         drawn: Array.isArray(incoming.drawn) ? incoming.drawn : [],
         pool: Array.isArray(incoming.pool) ? incoming.pool : [],
         winner: incoming.winner || null,
-        updatedAt: incoming.updatedAt || Date.now()
+        updatedAt: incomingUpdated || Date.now()
       };
 
       try {
@@ -1260,7 +1324,7 @@
       if (currentRole === "player") {
         const drawnSet = new Set(roomState.drawn);
         let boardChanged = false;
-        playerBoard = playerBoard.map((cell) => {
+        let nextBoard = playerBoard.map((cell) => {
           if (cell.isFree) return cell;
           if (cell.marked && !drawnSet.has(cell.num)) {
             boardChanged = true;
@@ -1268,12 +1332,21 @@
           }
           return cell;
         });
-        if (stateChanged || boardChanged) {
+
+        const autoMarkedBoard = applyAutoMarksToBoard(nextBoard, roomState.drawn);
+        if (autoMarkedBoard !== nextBoard) {
+          boardChanged = true;
+          nextBoard = autoMarkedBoard;
+        }
+        playerBoard = nextBoard;
+
+        if (boardChanged) {
           syncPlayerPresenceToRoom();
         }
       }
 
-      renderAll();
+      scheduleRender();
+      return true;
     }
 
     if (channel) {
@@ -1290,12 +1363,12 @@
             ...playersMap,
             [data.player.id]: data.player
           };
-          renderAll();
+          scheduleRender();
         } else if (data.type === "PLAYER_PRESENCE_REMOVE" && data.playerId) {
           const next = { ...playersMap };
           delete next[data.playerId];
           playersMap = next;
-          renderAll();
+          scheduleRender();
         }
       };
     }
@@ -1313,7 +1386,7 @@
           const parsed = JSON.parse(event.newValue);
           if (parsed && typeof parsed === "object") {
             playersMap = parsed;
-            renderAll();
+            scheduleRender();
           }
         } catch (err) {}
       }
@@ -1373,6 +1446,7 @@
     const playerDrawnScroll = document.getElementById("playerDrawnScroll");
     const playerGrid = document.getElementById("playerGrid");
     const callBingoBtn = document.getElementById("callBingoBtn");
+    const playerAutoMarkBtn = document.getElementById("playerAutoMarkBtn");
     const playerShuffleBtn = document.getElementById("playerShuffleBtn");
     const playerClearMarksBtn = document.getElementById("playerClearMarksBtn");
     const playerStatusToast = document.getElementById("playerStatusToast");
@@ -1394,7 +1468,7 @@
       const code = (adminRoomInput.value || gen4Code()).trim().toUpperCase();
       currentRole = "admin";
       currentRoom = code;
-      lastAppliedSyncSignature = "";
+      lastAppliedSignature = "";
       playersMap = loadPlayersFromStorage(code);
       const existing = loadRoomStateFromStorage(code);
       const initial = existing || createDefaultRoomState(code);
@@ -1415,15 +1489,15 @@
       currentRoom = code;
       playerId = generatePlayerId();
       playerName = name;
-      lastAppliedSyncSignature = "";
-      playerBoard = generateScatteredBoard();
+      lastAppliedSignature = "";
 
       const existing = loadRoomStateFromStorage(code);
       roomState = existing || createDefaultRoomState(code);
+      playerBoard = applyAutoMarksToBoard(generateScatteredBoard(), roomState.drawn);
       playersMap = loadPlayersFromStorage(code);
       attachRoomRealtimeListener(code);
       syncPlayerPresenceToRoom();
-      renderAll();
+      scheduleRender();
     });
 
     leaveBtn.addEventListener("click", () => {
@@ -1432,8 +1506,8 @@
       currentRole = null;
       currentRoom = "";
       playerId = "";
-      lastAppliedSyncSignature = "";
-      renderAll();
+      lastAppliedSignature = "";
+      scheduleRender();
     });
 
     adminRuleSelect.addEventListener("change", () => {
@@ -1523,7 +1597,7 @@
           setToast("รูปแบบรหัสซิงก์ไม่ถูกต้อง");
           return;
         }
-        lastAppliedSyncSignature = "";
+        lastAppliedSignature = "";
         applyIncomingRoomState(decoded);
         setToast("อัปเดตเลขและสถานะเรียบร้อยแล้ว");
       } catch (err) {
@@ -1569,22 +1643,34 @@
       return Boolean(getMatchedBingoRuleLabel());
     }
 
+    playerAutoMarkBtn.addEventListener("click", () => {
+      autoMarkEnabled = !autoMarkEnabled;
+      if (autoMarkEnabled) {
+        playerBoard = applyAutoMarksToBoard(playerBoard, roomState.drawn);
+        syncPlayerPresenceToRoom();
+        setToast("เปิดติ๊กอัตโนมัติแล้ว • ระบบจะติ๊กเลขที่ออกให้ทันที");
+      } else {
+        setToast("ปิดติ๊กอัตโนมัติแล้ว • กดจิ้มเลขที่ออกเองได้เลย");
+      }
+      scheduleRender();
+    });
+
     playerShuffleBtn.addEventListener("click", () => {
       if (roomState.locked) {
         setToast("แอดมินล็อกกระดานเริ่มเกมแล้ว ไม่สามารถสุ่มตารางใหม่ได้");
         return;
       }
-      playerBoard = generateScatteredBoard();
+      playerBoard = applyAutoMarksToBoard(generateScatteredBoard(), roomState.drawn);
       setToast("สุ่มตัวเลขบนกระดาน 5×5 ใหม่เรียบร้อยแล้ว");
       syncPlayerPresenceToRoom();
-      renderPlayer();
+      scheduleRender();
     });
 
     playerClearMarksBtn.addEventListener("click", () => {
       playerBoard = playerBoard.map((cell) => (cell.isFree ? cell : { ...cell, marked: false }));
       setToast("ล้างจุดที่ติ๊กออกแล้ว (ช่อง FREE ยังคงอยู่)");
       syncPlayerPresenceToRoom();
-      renderPlayer();
+      scheduleRender();
     });
 
     callBingoBtn.addEventListener("click", () => {
@@ -1753,6 +1839,8 @@
         ? "ล็อกกระดานแล้ว (ห้ามเปลี่ยน)"
         : "สุ่มตารางได้";
 
+      playerAutoMarkBtn.textContent = autoMarkEnabled ? "ติ๊กอัตโนมัติ: เปิด" : "ติ๊กอัตโนมัติ: ปิด";
+      playerAutoMarkBtn.className = autoMarkEnabled ? "btn-emerald" : "btn-ghost";
       playerShuffleBtn.disabled = Boolean(roomState.locked);
 
       if (roomState.winner && roomState.winner.name) {
@@ -1811,7 +1899,7 @@
               : "ยกเลิกติ๊กเลข " + cell.num + " แล้ว"
           );
           syncPlayerPresenceToRoom();
-          renderPlayer();
+          scheduleRender();
         });
 
         playerGrid.appendChild(btn);
