@@ -928,9 +928,9 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const STORAGE_PREFIX = "gift_bingo_room_v7_";
+    const STORAGE_PREFIX = "gift_bingo_room_v8_";
     const SOUND_PREF_KEY = "gift_bingo_sound_enabled_v1";
-    const CHANNEL_NAME = "gift_bingo_channel_v7";
+    const CHANNEL_NAME = "gift_bingo_channel_v8";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
     const LINE_PATTERNS = [
@@ -974,6 +974,24 @@
     let bgmStep = 0;
     let lastAnnouncedLatest = null;
     let lastAnnouncedWinnerKey = "";
+
+    function numberToThaiWords(n) {
+      const num = Number(n);
+      if (!Number.isInteger(num) || num < 1 || num > 99) return String(n);
+      const digits = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+      if (num < 10) return digits[num];
+      if (num === 10) return "สิบ";
+      if (num < 20) {
+        const ones = num % 10;
+        return ones === 1 ? "สิบเอ็ด" : "สิบ" + digits[ones];
+      }
+      const tens = Math.floor(num / 10);
+      const ones = num % 10;
+      const tensWord = tens === 2 ? "ยี่สิบ" : digits[tens] + "สิบ";
+      if (ones === 0) return tensWord;
+      if (ones === 1) return tensWord + "เอ็ด";
+      return tensWord + digits[ones];
+    }
 
     function ensureAudioContext() {
       if (!soundEnabled) return null;
@@ -1019,8 +1037,8 @@
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
       osc1.type = "sine";
-      osc1.frequency.setValueAtTime(523.25, now); // C5
-      osc1.frequency.exponentialRampToValueAtTime(783.99, now + 0.09); // G5
+      osc1.frequency.setValueAtTime(523.25, now);
+      osc1.frequency.exponentialRampToValueAtTime(783.99, now + 0.09);
 
       gain1.gain.setValueAtTime(0.001, now);
       gain1.gain.linearRampToValueAtTime(0.12, now + 0.012);
@@ -1038,7 +1056,7 @@
       if (!ctx) return;
       const now = ctx.currentTime;
 
-      const chordNotes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+      const chordNotes = [523.25, 659.25, 783.99, 1046.5];
       chordNotes.forEach((freq, idx) => {
         const startAt = now + idx * 0.075;
         const osc = ctx.createOscillator();
@@ -1078,7 +1096,7 @@
       return null;
     }
 
-    function speakThaiText(text, pitch = 1.18, rate = 1.0) {
+    function speakThaiText(text, pitch = 1.2, rate = 1.0) {
       if (!soundEnabled || !("speechSynthesis" in window)) return;
       try {
         window.speechSynthesis.cancel();
@@ -1096,8 +1114,8 @@
     }
 
     function announceDrawnNumberFemale(num) {
-      if (!soundEnabled) return;
-      speakThaiText("หมายเลข " + num, 1.2, 1.02);
+      if (!soundEnabled || currentRole !== "admin") return;
+      speakThaiText(numberToThaiWords(num), 1.22, 1.0);
     }
 
     function announceBingoCheerVoice() {
@@ -1107,7 +1125,6 @@
       }, 240);
     }
 
-    // Gentle soft background music loop (low volume)
     const BGM_MELODY = [
       523.25, 0, 659.25, 0, 783.99, 659.25, 587.33, 0,
       493.88, 0, 587.33, 0, 659.25, 587.33, 523.25, 0
@@ -1178,7 +1195,6 @@
       });
     }
 
-    // Play tactile button press sound on any button click
     document.addEventListener(
       "click",
       (e) => {
@@ -2009,7 +2025,9 @@
       if (latest !== null && latest !== lastAnnouncedLatest) {
         lastAnnouncedLatest = latest;
         playNumberAppearSound();
-        announceDrawnNumberFemale(latest);
+        if (currentRole === "admin") {
+          announceDrawnNumberFemale(latest);
+        }
       }
 
       if (roomState.winner && roomState.winner.name) {
