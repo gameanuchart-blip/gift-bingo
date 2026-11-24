@@ -162,6 +162,15 @@
       border-color: rgba(148, 163, 184, 0.25);
     }
 
+    .btn-danger-sm {
+      background: rgba(244, 63, 94, 0.16);
+      border-color: rgba(244, 63, 94, 0.42);
+      color: #fda4af;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      border-radius: 8px;
+    }
+
     .btn-sound-on {
       background: rgba(16, 185, 129, 0.18);
       border-color: rgba(16, 185, 129, 0.45);
@@ -172,6 +181,18 @@
       background: rgba(244, 63, 94, 0.16);
       border-color: rgba(244, 63, 94, 0.4);
       color: #fda4af;
+    }
+
+    .btn-music-on {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(129, 140, 248, 0.48);
+      color: #c7d2fe;
+    }
+
+    .btn-music-off {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(148, 163, 184, 0.28);
+      color: #94a3b8;
     }
 
     input[type="text"], select {
@@ -378,6 +399,13 @@
       margin-bottom: 8px;
     }
 
+    .players-tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
     .players-legend {
       display: flex;
       flex-wrap: wrap;
@@ -451,11 +479,17 @@
       text-overflow: ellipsis;
     }
 
+    .player-mini-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
     .player-mini-count {
       font-size: 0.74rem;
       font-weight: 700;
       color: #6ee7b7;
-      flex-shrink: 0;
     }
 
     .mini-board-5x5 {
@@ -708,6 +742,7 @@
       <div class="topbar-actions" id="topActions">
         <span class="pill" id="roomPill">ยังไม่ได้เข้าห้อง</span>
         <span class="pill live" id="syncPill">เรียลไทม์พร้อมใช้งาน</span>
+        <button class="btn-music-on" id="musicToggleBtn" type="button">เพลงคลอ: เปิด</button>
         <button class="btn-sound-on" id="soundToggleBtn" type="button">เสียง: เปิด</button>
         <button class="btn-ghost hidden" id="leaveBtn" type="button">ออกจากห้อง</button>
       </div>
@@ -832,10 +867,15 @@
             <div style="font-size: 0.9rem; font-weight: 700;" id="adminPlayersCountLabel">
               ผู้เล่นในห้อง (0 คน)
             </div>
-            <div class="players-legend">
-              <span class="legend-item"><span class="legend-swatch swatch-empty"></span>ยังไม่ติ๊ก</span>
-              <span class="legend-item"><span class="legend-swatch swatch-free"></span>FREE</span>
-              <span class="legend-item"><span class="legend-swatch swatch-marked"></span>ติ๊กแล้ว</span>
+            <div class="players-tools">
+              <div class="players-legend">
+                <span class="legend-item"><span class="legend-swatch swatch-empty"></span>ยังไม่ติ๊ก</span>
+                <span class="legend-item"><span class="legend-swatch swatch-free"></span>FREE</span>
+                <span class="legend-item"><span class="legend-swatch swatch-marked"></span>ติ๊กแล้ว</span>
+              </div>
+              <button class="btn-danger-sm" id="clearAllPlayersBtn" type="button">
+                ล้างผู้เล่นทั้งหมด
+              </button>
             </div>
           </div>
           <div class="players-grid" id="adminPlayersGrid">
@@ -928,9 +968,10 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const STORAGE_PREFIX = "gift_bingo_room_v8_";
+    const STORAGE_PREFIX = "gift_bingo_room_v9_";
     const SOUND_PREF_KEY = "gift_bingo_sound_enabled_v1";
-    const CHANNEL_NAME = "gift_bingo_channel_v8";
+    const MUSIC_PREF_KEY = "gift_bingo_music_enabled_v1";
+    const CHANNEL_NAME = "gift_bingo_channel_v9";
     const channel = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL_NAME) : null;
 
     const LINE_PATTERNS = [
@@ -956,13 +997,22 @@
       lines_corners_inner: "แถว/ทแยง + 4 มุม + วงใน",
       corners_only: "เฉพาะ 4 มุม (แบบที่ 5)",
       inner_only: "เฉพาะวงใน (แบบที่ 6)",
-      lines_only: "เฉพาะแถว/คอลัมน์/ทแยง"
+      lines_only: "เฉพาะแถว/คอลัมน์/แนวทแยง"
     };
 
-    // --- Sound & Voice Engine ---
+    // --- Sound, Background Music & Voice Engine ---
     let soundEnabled = (() => {
       try {
         const saved = localStorage.getItem(SOUND_PREF_KEY);
+        return saved === null ? true : saved === "1";
+      } catch (err) {
+        return true;
+      }
+    })();
+
+    let musicEnabled = (() => {
+      try {
+        const saved = localStorage.getItem(MUSIC_PREF_KEY);
         return saved === null ? true : saved === "1";
       } catch (err) {
         return true;
@@ -994,7 +1044,7 @@
     }
 
     function ensureAudioContext() {
-      if (!soundEnabled) return null;
+      if (!soundEnabled && !musicEnabled) return null;
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return null;
       if (!audioCtx) {
@@ -1131,7 +1181,7 @@
     ];
 
     function playSoftBgmStep() {
-      if (!soundEnabled) return;
+      if (!soundEnabled || !musicEnabled) return;
       const ctx = ensureAudioContext();
       if (!ctx || ctx.state !== "running") return;
 
@@ -1157,7 +1207,7 @@
 
     function startSoftBgm() {
       stopSoftBgm();
-      if (!soundEnabled) return;
+      if (!soundEnabled || !musicEnabled) return;
       bgmTimer = setInterval(playSoftBgmStep, 460);
     }
 
@@ -1177,15 +1227,29 @@
       }
     }
 
-    function updateSoundToggleUi() {
-      const btn = document.getElementById("soundToggleBtn");
-      if (!btn) return;
-      if (soundEnabled) {
-        btn.textContent = "เสียง: เปิด";
-        btn.className = "btn-sound-on";
-      } else {
-        btn.textContent = "เสียง: ปิด";
-        btn.className = "btn-sound-off";
+    function updateAudioButtonsUi() {
+      const soundBtn = document.getElementById("soundToggleBtn");
+      const musicBtn = document.getElementById("musicToggleBtn");
+
+      if (soundBtn) {
+        if (soundEnabled) {
+          soundBtn.textContent = "เสียง: เปิด";
+          soundBtn.className = "btn-sound-on";
+        } else {
+          soundBtn.textContent = "เสียง: ปิด";
+          soundBtn.className = "btn-sound-off";
+        }
+      }
+
+      if (musicBtn) {
+        if (soundEnabled && musicEnabled) {
+          musicBtn.textContent = "เพลงคลอ: เปิด";
+          musicBtn.className = "btn-music-on";
+        } else {
+          musicBtn.textContent = "เพลงคลอ: ปิด";
+          musicBtn.className = "btn-music-off";
+        }
+        musicBtn.disabled = !soundEnabled;
       }
     }
 
@@ -1200,10 +1264,10 @@
       (e) => {
         const targetBtn = e.target && e.target.closest ? e.target.closest("button") : null;
         if (!targetBtn || targetBtn.disabled) return;
-        if (targetBtn.id === "soundToggleBtn") return;
-        if (soundEnabled) {
+        if (targetBtn.id === "soundToggleBtn" || targetBtn.id === "musicToggleBtn") return;
+        if (soundEnabled || musicEnabled) {
           ensureAudioContext();
-          if (!bgmTimer) startSoftBgm();
+          if (soundEnabled && musicEnabled && !bgmTimer) startSoftBgm();
           playButtonPressSound();
         }
       },
@@ -1413,6 +1477,53 @@
           });
         } catch (err) {}
       }
+    }
+
+    function adminRemoveSinglePlayer(targetId) {
+      if (currentRole !== "admin" || !currentRoom || !targetId) return;
+      const cleanCode = String(currentRoom).trim().toUpperCase();
+      const nextPlayers = { ...playersMap };
+      delete nextPlayers[targetId];
+      playersMap = nextPlayers;
+
+      try {
+        localStorage.setItem(playersStorageKey(cleanCode), JSON.stringify(playersMap));
+      } catch (err) {}
+
+      remove(ref(db, "rooms/" + cleanCode + "/players/" + targetId)).catch(() => {});
+
+      if (channel) {
+        try {
+          channel.postMessage({
+            type: "PLAYER_PRESENCE_REMOVE",
+            room: cleanCode,
+            playerId: targetId
+          });
+        } catch (err) {}
+      }
+      scheduleRender();
+    }
+
+    function adminClearAllPlayers() {
+      if (currentRole !== "admin" || !currentRoom) return;
+      const cleanCode = String(currentRoom).trim().toUpperCase();
+      playersMap = {};
+
+      try {
+        localStorage.setItem(playersStorageKey(cleanCode), JSON.stringify({}));
+      } catch (err) {}
+
+      remove(ref(db, "rooms/" + cleanCode + "/players")).catch(() => {});
+
+      if (channel) {
+        try {
+          channel.postMessage({
+            type: "PLAYER_PRESENCE_CLEAR",
+            room: cleanCode
+          });
+        } catch (err) {}
+      }
+      scheduleRender();
     }
 
     function attachRoomRealtimeListener(code) {
@@ -1649,6 +1760,9 @@
           delete next[data.playerId];
           playersMap = next;
           scheduleRender();
+        } else if (data.type === "PLAYER_PRESENCE_CLEAR") {
+          playersMap = {};
+          scheduleRender();
         }
       };
     }
@@ -1684,6 +1798,7 @@
       stopAllSoundsNow();
     });
 
+    const musicToggleBtn = document.getElementById("musicToggleBtn");
     const soundToggleBtn = document.getElementById("soundToggleBtn");
     const lobbyView = document.getElementById("lobbyView");
     const adminView = document.getElementById("adminView");
@@ -1715,6 +1830,7 @@
     const adminHistoryChips = document.getElementById("adminHistoryChips");
     const adminBoard75 = document.getElementById("adminBoard75");
     const adminPlayersCountLabel = document.getElementById("adminPlayersCountLabel");
+    const clearAllPlayersBtn = document.getElementById("clearAllPlayersBtn");
     const adminPlayersGrid = document.getElementById("adminPlayersGrid");
     const adminWinnerBanner = document.getElementById("adminWinnerBanner");
     const adminWinnerText = document.getElementById("adminWinnerText");
@@ -1737,20 +1853,41 @@
     const playerWinnerBanner = document.getElementById("playerWinnerBanner");
     const playerWinnerText = document.getElementById("playerWinnerText");
 
+    musicToggleBtn.addEventListener("click", () => {
+      if (!soundEnabled) return;
+      musicEnabled = !musicEnabled;
+      try {
+        localStorage.setItem(MUSIC_PREF_KEY, musicEnabled ? "1" : "0");
+      } catch (err) {}
+      updateAudioButtonsUi();
+
+      if (musicEnabled) {
+        ensureAudioContext();
+        playButtonPressSound();
+        startSoftBgm();
+      } else {
+        stopSoftBgm();
+      }
+    });
+
     soundToggleBtn.addEventListener("click", () => {
       soundEnabled = !soundEnabled;
       try {
         localStorage.setItem(SOUND_PREF_KEY, soundEnabled ? "1" : "0");
       } catch (err) {}
-      updateSoundToggleUi();
+      updateAudioButtonsUi();
 
       if (soundEnabled) {
         ensureAudioContext();
         playButtonPressSound();
-        startSoftBgm();
+        if (musicEnabled) startSoftBgm();
       } else {
         stopAllSoundsNow();
       }
+    });
+
+    clearAllPlayersBtn.addEventListener("click", () => {
+      adminClearAllPlayers();
     });
 
     function gen4Code() {
@@ -1777,7 +1914,7 @@
       const initial = existing || createDefaultRoomState(code);
       initial.room = code;
       initial.ruleMode = initial.ruleMode || "lines_corners_inner";
-      if (soundEnabled) startSoftBgm();
+      if (soundEnabled && musicEnabled) startSoftBgm();
       attachRoomRealtimeListener(code);
       saveAndBroadcastRoomState(initial);
     });
@@ -1805,7 +1942,7 @@
           : null;
       playerBoard = applyAutoMarksToBoard(generateScatteredBoard(), roomState.drawn);
       playersMap = loadPlayersFromStorage(code);
-      if (soundEnabled) startSoftBgm();
+      if (soundEnabled && musicEnabled) startSoftBgm();
       attachRoomRealtimeListener(code);
       syncPlayerPresenceToRoom();
       scheduleRender();
@@ -2041,7 +2178,7 @@
     }
 
     function renderAll() {
-      updateSoundToggleUi();
+      updateAudioButtonsUi();
 
       if (!currentRole || !currentRoom) {
         lobbyView.classList.remove("hidden");
@@ -2078,6 +2215,7 @@
       list.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
 
       adminPlayersCountLabel.textContent = "ผู้เล่นในห้อง (" + list.length + " คน)";
+      clearAllPlayersBtn.disabled = list.length === 0;
       adminPlayersGrid.innerHTML = "";
 
       if (list.length === 0) {
@@ -2100,12 +2238,30 @@
         nameEl.title = p.name;
         nameEl.textContent = p.name;
 
+        const meta = document.createElement("div");
+        meta.className = "player-mini-meta";
+
         const countEl = document.createElement("span");
         countEl.className = "player-mini-count";
         countEl.textContent = p.bingoRule ? "BINGO!" : "ติ๊ก " + (Number(p.markedCount) || 0);
 
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-danger-sm";
+        delBtn.title = "ลบผู้เล่นคนนี้";
+        delBtn.textContent = "ลบ";
+        delBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (p.id) {
+            adminRemoveSinglePlayer(p.id);
+          }
+        });
+
+        meta.appendChild(countEl);
+        meta.appendChild(delBtn);
+
         top.appendChild(nameEl);
-        top.appendChild(countEl);
+        top.appendChild(meta);
         card.appendChild(top);
 
         const miniGrid = document.createElement("div");
@@ -2277,7 +2433,7 @@
       prevRenderedLatest = latest;
     }
 
-    updateSoundToggleUi();
+    updateAudioButtonsUi();
     renderAll();
   </script>
 </body>
